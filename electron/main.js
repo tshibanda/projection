@@ -47,6 +47,7 @@ function attachLiveWindowHandling(contents) {
       return {
         action: "allow",
         overrideBrowserWindowOptions: {
+          title: "VerseFlow LIVE",
           width: 1280,
           height: 720,
           frame: false,

@@ -66,8 +66,8 @@ export function createShow(title: string): Show {
   return show;
 }
 
-export function newSlide(reference: string, text: string): Slide {
-  return { id: crypto.randomUUID(), reference, text };
+export function newSlide(reference: string, text: string, version: string): Slide {
+  return { id: crypto.randomUUID(), reference, text, version };
 }
 
 export function updateShowStyle(show: Show, patch: Partial<ShowStyle>): Show {

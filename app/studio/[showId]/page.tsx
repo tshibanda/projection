@@ -90,6 +90,9 @@ export default function StudioShowPage() {
       const clamped = Math.max(0, Math.min(index, show.slides.length - 1));
       setActiveIndex(clamped);
       setBlackout(false);
+      // Push before opening: a brand-new live window's first fetch would
+      // otherwise race the state update and briefly show the old slide.
+      pushLiveState(show.id, { show, slideIndex: clamped, blackout: false });
       openLiveWindow();
     },
     [show, openLiveWindow]
@@ -124,8 +127,8 @@ export default function StudioShowPage() {
     );
   }
 
-  const addSlide = (reference: string, text: string) => {
-    const next = { ...show, slides: [...show.slides, newSlide(reference, text)] };
+  const addSlide = (reference: string, text: string, version: string) => {
+    const next = { ...show, slides: [...show.slides, newSlide(reference, text, version)] };
     persist(next);
   };
 

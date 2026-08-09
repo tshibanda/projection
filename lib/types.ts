@@ -4,6 +4,7 @@ export interface Slide {
   id: string;
   reference: string;
   text: string;
+  version: string;
 }
 
 export type BandWidth = "full" | "fit";
@@ -14,15 +15,17 @@ export interface ShowStyle {
   textColor: string;
   showOutline: boolean;
   showShadow: boolean;
-  position: SlidePosition;
+  versePosition: SlidePosition;
+  referencePosition: SlidePosition;
   overlayOpacity: number; // 0-90, dims the background video/image
   showReference: boolean;
   fadeTransition: boolean;
-  transparentBg: boolean; // OBS Browser Source mode: no video/gradient, transparent page background
-  bandEnabled: boolean; // colored band behind the text block
+  transparentBg: boolean; // no video/gradient, transparent page background (e.g. OBS Browser Source)
+  bandEnabled: boolean; // colored/image band behind the verse text
   bandColor: string;
   bandOpacity: number; // 0-100
   bandWidth: BandWidth;
+  bandImage: string | null; // data URL
 }
 
 export type VideoSource =
@@ -53,7 +56,8 @@ export const defaultStyle: ShowStyle = {
   textColor: "#ffffff",
   showOutline: true,
   showShadow: true,
-  position: "center",
+  versePosition: "center",
+  referencePosition: "bottom",
   overlayOpacity: 45,
   showReference: true,
   fadeTransition: true,
@@ -62,4 +66,5 @@ export const defaultStyle: ShowStyle = {
   bandColor: "#000000",
   bandOpacity: 55,
   bandWidth: "fit",
+  bandImage: null,
 };

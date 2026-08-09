@@ -42,6 +42,10 @@ export default function LivePage() {
   }, [show?.style.transparentBg]);
 
   useEffect(() => {
+    document.title = "VerseFlow LIVE";
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     let objectUrl: string | null = null;
 
@@ -76,7 +80,14 @@ export default function LivePage() {
   const transparent = show?.style.transparentBg ?? false;
 
   return (
-    <main className="h-screen w-screen overflow-hidden">
+    <main className="group relative h-screen w-screen overflow-hidden">
+      <button
+        onClick={() => window.close()}
+        title="Quitter le mode live"
+        className="absolute right-3 top-3 z-50 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white opacity-0 backdrop-blur transition-opacity duration-150 hover:bg-black/80 group-hover:opacity-100"
+      >
+        ✕
+      </button>
       {show ? (
         <ProjectionCanvas
           videoUrl={videoUrl}

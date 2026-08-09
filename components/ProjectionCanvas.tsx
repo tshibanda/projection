@@ -11,7 +11,7 @@ interface ProjectionCanvasProps {
   blackout: boolean;
 }
 
-const positionClasses: Record<ShowStyle["position"], string> = {
+const positionClasses: Record<ShowStyle["versePosition"], string> = {
   top: "items-start pt-[6%]",
   center: "items-center",
   bottom: "items-end pb-[6%]",
@@ -24,6 +24,17 @@ export default function ProjectionCanvas({
   style,
   blackout,
 }: ProjectionCanvasProps) {
+  const versePosition = style.versePosition ?? "center";
+  const referencePosition = style.referencePosition ?? "bottom";
+
+  const bandBackground = style.bandImage
+    ? {
+        backgroundImage: `linear-gradient(${hexToRgba(style.bandColor, style.bandOpacity / 100)}, ${hexToRgba(style.bandColor, style.bandOpacity / 100)}), url(${style.bandImage})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }
+    : { backgroundColor: hexToRgba(style.bandColor, style.bandOpacity / 100) };
+
   return (
     <div
       className="relative h-full w-full overflow-hidden"
@@ -51,7 +62,7 @@ export default function ProjectionCanvas({
       )}
       {!blackout && slide && (
         <div
-          className={`absolute inset-0 flex flex-col justify-center px-[6%] text-center ${positionClasses[style.position]}`}
+          className={`absolute inset-0 flex flex-col justify-center px-[6%] text-center ${positionClasses[versePosition]}`}
         >
           <div
             className={
@@ -61,11 +72,7 @@ export default function ProjectionCanvas({
                   : "inline-block rounded-xl px-[4%] py-[2%]"
                 : ""
             }
-            style={
-              style.bandEnabled
-                ? { backgroundColor: hexToRgba(style.bandColor, style.bandOpacity / 100) }
-                : undefined
-            }
+            style={style.bandEnabled ? bandBackground : undefined}
           >
             <p
               className={[
@@ -78,15 +85,23 @@ export default function ProjectionCanvas({
             >
               {slide.text}
             </p>
-            {style.showReference && (
-              <p
-                className="mt-[2%] font-sans uppercase tracking-widest text-accent2"
-                style={{ fontSize: `${Math.max(style.fontSize * 0.32, 1)}vw` }}
-              >
-                {slide.reference}
-              </p>
-            )}
           </div>
+        </div>
+      )}
+      {!blackout && slide && style.showReference && (
+        <div
+          className={`absolute inset-0 flex flex-col justify-center px-[6%] text-center ${positionClasses[referencePosition]}`}
+        >
+          <p
+            className={[
+              style.showShadow ? "text-shadow-strong" : "",
+              "font-sans uppercase tracking-widest text-accent2",
+            ].join(" ")}
+            style={{ fontSize: `${Math.max(style.fontSize * 0.32, 1)}vw` }}
+          >
+            {slide.reference}
+            {slide.version ? ` · ${slide.version}` : ""}
+          </p>
         </div>
       )}
     </div>

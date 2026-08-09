@@ -4,13 +4,14 @@ import { useMemo, useState } from "react";
 import { searchVerses } from "@/lib/verses";
 
 interface VerseSearchProps {
-  onAdd: (reference: string, text: string) => void;
+  onAdd: (reference: string, text: string, version: string) => void;
 }
 
 export default function VerseSearch({ onAdd }: VerseSearchProps) {
   const [query, setQuery] = useState("");
   const [customRef, setCustomRef] = useState("");
   const [customText, setCustomText] = useState("");
+  const [customVersion, setCustomVersion] = useState("");
   const [showCustom, setShowCustom] = useState(false);
 
   const results = useMemo(() => searchVerses(query).slice(0, 8), [query]);
@@ -28,7 +29,7 @@ export default function VerseSearch({ onAdd }: VerseSearchProps) {
         {results.map((v) => (
           <button
             key={v.reference}
-            onClick={() => onAdd(v.reference, v.text)}
+            onClick={() => onAdd(v.reference, v.text, "LSG")}
             className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/5"
           >
             <span className="block font-medium text-accent2">{v.reference}</span>
@@ -55,6 +56,12 @@ export default function VerseSearch({ onAdd }: VerseSearchProps) {
             placeholder="Référence (ex: Romains 8:31)"
             className="w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm outline-none focus:border-accent"
           />
+          <input
+            value={customVersion}
+            onChange={(e) => setCustomVersion(e.target.value)}
+            placeholder="Version (ex: LSG, NIV, Segond 21...)"
+            className="w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm outline-none focus:border-accent"
+          />
           <textarea
             value={customText}
             onChange={(e) => setCustomText(e.target.value)}
@@ -65,8 +72,9 @@ export default function VerseSearch({ onAdd }: VerseSearchProps) {
           <button
             disabled={!customText.trim()}
             onClick={() => {
-              onAdd(customRef.trim() || "Verset personnalisé", customText.trim());
+              onAdd(customRef.trim() || "Verset personnalisé", customText.trim(), customVersion.trim());
               setCustomRef("");
+              setCustomVersion("");
               setCustomText("");
             }}
             className="w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-40"
