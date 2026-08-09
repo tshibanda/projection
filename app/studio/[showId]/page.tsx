@@ -128,9 +128,13 @@ export default function StudioShowPage() {
     );
   }
 
+  const addSlides = (items: { reference: string; text: string; version: string }[]) => {
+    const newSlides = items.map((it) => newSlide(it.reference, it.text, it.version));
+    persist({ ...show, slides: [...show.slides, ...newSlides] });
+  };
+
   const addSlide = (reference: string, text: string, version: string) => {
-    const next = { ...show, slides: [...show.slides, newSlide(reference, text, version)] };
-    persist(next);
+    addSlides([{ reference, text, version }]);
   };
 
   const editSlide = (id: string, patch: Partial<Pick<Slide, "reference" | "text" | "version">>) => {
@@ -266,7 +270,7 @@ export default function StudioShowPage() {
             </div>
 
             <div className="mt-6">
-              <VerseSearch onAdd={addSlide} />
+              <VerseSearch onAdd={addSlide} onAddMany={addSlides} />
             </div>
           </section>
 

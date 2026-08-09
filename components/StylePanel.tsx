@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { defaultStyle, ShowStyle } from "@/lib/types";
+import { deleteStylePreset, listStylePresets, saveStylePreset, StylePreset } from "@/lib/stylePresets";
 
 interface StylePanelProps {
   style: ShowStyle;
@@ -14,6 +15,29 @@ const MAX_FONT_BYTES = 6 * 1024 * 1024;
 export default function StylePanel({ style, onChange }: StylePanelProps) {
   const bandImageInputRef = useRef<HTMLInputElement>(null);
   const fontInputRef = useRef<HTMLInputElement>(null);
+  const [presets, setPresets] = useState<StylePreset[]>([]);
+  const [newPresetName, setNewPresetName] = useState("");
+
+  useEffect(() => {
+    setPresets(listStylePresets());
+  }, []);
+
+  const handleSavePreset = () => {
+    const name = newPresetName.trim();
+    if (!name) return;
+    const saved = saveStylePreset(name, style);
+    if (!saved) {
+      alert("Impossible d'enregistrer ce style favori (stockage local plein).");
+      return;
+    }
+    setPresets(listStylePresets());
+    setNewPresetName("");
+  };
+
+  const handleDeletePreset = (id: string) => {
+    deleteStylePreset(id);
+    setPresets(listStylePresets());
+  };
 
   const handleBandImage = (file: File) => {
     if (file.size > MAX_IMAGE_BYTES) {
@@ -43,6 +67,52 @@ export default function StylePanel({ style, onChange }: StylePanelProps) {
 
   return (
     <div className="rounded-xl border border-white/10 bg-panel p-4">
+      <h3 className="mb-3 text-sm font-semibold text-white/80">Styles favoris</h3>
+      <div className="mb-6 space-y-2 border-b border-white/10 pb-4 text-sm">
+        <div className="flex gap-2">
+          <input
+            value={newPresetName}
+            onChange={(e) => setNewPresetName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSavePreset()}
+            placeholder="Nom du style (ex: Culte du dimanche)"
+            className="flex-1 rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm outline-none focus:border-accent"
+          />
+          <button
+            onClick={handleSavePreset}
+            disabled={!newPresetName.trim()}
+            className="rounded-lg bg-accent px-3 py-2 text-xs font-medium text-white disabled:opacity-40"
+          >
+            Enregistrer
+          </button>
+        </div>
+        {presets.length > 0 && (
+          <ul className="space-y-1">
+            {presets.map((p) => (
+              <li
+                key={p.id}
+                className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-2 text-white/70"
+              >
+                <span className="truncate">{p.name}</span>
+                <span className="flex shrink-0 gap-3">
+                  <button
+                    onClick={() => onChange(p.style)}
+                    className="text-accent2 hover:underline"
+                  >
+                    Appliquer
+                  </button>
+                  <button
+                    onClick={() => handleDeletePreset(p.id)}
+                    className="text-red-400/70 hover:underline"
+                  >
+                    Supprimer
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       <h3 className="mb-3 text-sm font-semibold text-white/80">Style du texte</h3>
 
       <div className="space-y-4 text-sm">

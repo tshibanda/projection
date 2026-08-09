@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { searchVerses } from "@/lib/verses";
 import { parseBibleJson, ImportedVerse } from "@/lib/bibleParse";
+import { parseReferenceQuery, referenceFor } from "@/lib/verseReference";
 import {
   listImportedVersionNames,
   loadBibleVersion,
@@ -10,11 +10,17 @@ import {
   storeBibleVersion,
 } from "@/lib/bibleDb";
 
-interface VerseSearchProps {
-  onAdd: (reference: string, text: string, version: string) => void;
+export interface VerseToAdd {
+  reference: string;
+  text: string;
+  version: string;
 }
 
-const BUILTIN_VERSION = "LSG";
+interface VerseSearchProps {
+  onAdd: (reference: string, text: string, version: string) => void;
+  onAddMany: (items: VerseToAdd[]) => void;
+}
+
 const MAX_IMPORT_BYTES = 30 * 1024 * 1024;
 
 function searchImported(verses: ImportedVerse[], query: string): ImportedVerse[] {
@@ -30,7 +36,7 @@ function searchImported(verses: ImportedVerse[], query: string): ImportedVerse[]
   return results;
 }
 
-export default function VerseSearch({ onAdd }: VerseSearchProps) {
+export default function VerseSearch({ onAdd, onAddMany }: VerseSearchProps) {
   const [query, setQuery] = useState("");
   const [customRef, setCustomRef] = useState("");
   const [customText, setCustomText] = useState("");
@@ -39,18 +45,20 @@ export default function VerseSearch({ onAdd }: VerseSearchProps) {
   const [showManageVersions, setShowManageVersions] = useState(false);
 
   const [importedNames, setImportedNames] = useState<string[]>([]);
-  const [activeVersion, setActiveVersion] = useState(BUILTIN_VERSION);
+  const [activeVersion, setActiveVersion] = useState("");
   const [activeVerses, setActiveVerses] = useState<ImportedVerse[] | null>(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setImportedNames(listImportedVersionNames());
+    const names = listImportedVersionNames();
+    setImportedNames(names);
+    if (names.length > 0) setActiveVersion(names[0]);
   }, []);
 
   useEffect(() => {
-    if (activeVersion === BUILTIN_VERSION) {
+    if (!activeVersion) {
       setActiveVerses(null);
       return;
     }
@@ -63,11 +71,23 @@ export default function VerseSearch({ onAdd }: VerseSearchProps) {
     };
   }, [activeVersion]);
 
+  const refQuery = useMemo(() => parseReferenceQuery(query), [query]);
+
+  const exactMatches = useMemo(() => {
+    if (!refQuery || !activeVerses) return [];
+    const wanted: ImportedVerse[] = [];
+    for (let v = refQuery.start; v <= refQuery.end; v++) {
+      const target = referenceFor(refQuery.book, refQuery.chapter, v).toLowerCase();
+      const found = activeVerses.find((av) => av.reference.toLowerCase() === target);
+      if (found) wanted.push(found);
+    }
+    return wanted;
+  }, [refQuery, activeVerses]);
+
   const results = useMemo(() => {
-    if (activeVersion === BUILTIN_VERSION) return searchVerses(query).slice(0, 8);
-    if (!activeVerses) return [];
+    if (refQuery || !activeVerses) return [];
     return searchImported(activeVerses, query);
-  }, [activeVersion, activeVerses, query]);
+  }, [refQuery, activeVerses, query]);
 
   const handleImportFile = async (file: File) => {
     setImportError(null);
@@ -92,8 +112,9 @@ export default function VerseSearch({ onAdd }: VerseSearchProps) {
 
   const handleDeleteVersion = async (name: string) => {
     await removeBibleVersion(name);
-    setImportedNames(listImportedVersionNames());
-    if (activeVersion === name) setActiveVersion(BUILTIN_VERSION);
+    const names = listImportedVersionNames();
+    setImportedNames(names);
+    if (activeVersion === name) setActiveVersion(names[0] ?? "");
   };
 
   return (
@@ -153,45 +174,86 @@ export default function VerseSearch({ onAdd }: VerseSearchProps) {
         </div>
       )}
 
-      <label className="mb-2 block text-xs text-white/50">Version</label>
-      <select
-        value={activeVersion}
-        onChange={(e) => setActiveVersion(e.target.value)}
-        className="mb-3 w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm outline-none focus:border-accent"
-      >
-        <option value={BUILTIN_VERSION}>Louis Segond 1910 (intégrée)</option>
-        {importedNames.map((name) => (
-          <option key={name} value={name}>
-            {name}
-          </option>
-        ))}
-      </select>
-
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Rechercher (ex: Jean 3:16, espérance...)"
-        className="w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm outline-none focus:border-accent"
-      />
-      <div className="mt-3 max-h-64 space-y-1 overflow-y-auto">
-        {results.map((v) => (
-          <button
-            key={v.reference}
-            onClick={() => onAdd(v.reference, v.text, activeVersion)}
-            className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/5"
+      {importedNames.length === 0 ? (
+        <p className="mb-3 text-sm text-white/40">
+          Aucune version importée. Utilisez « Versions… » pour en ajouter une, ou ajoutez un
+          verset personnalisé ci-dessous.
+        </p>
+      ) : (
+        <>
+          <label className="mb-2 block text-xs text-white/50">Version</label>
+          <select
+            value={activeVersion}
+            onChange={(e) => setActiveVersion(e.target.value)}
+            className="mb-3 w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm outline-none focus:border-accent"
           >
-            <span className="block font-medium text-accent2">{v.reference}</span>
-            <span className="block truncate text-white/60">{v.text}</span>
-          </button>
-        ))}
-        {results.length === 0 && (
-          <p className="px-3 py-2 text-sm text-white/40">
-            {activeVersion !== BUILTIN_VERSION && !activeVerses
-              ? "Chargement…"
-              : "Aucun résultat."}
-          </p>
-        )}
-      </div>
+            {importedNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Rechercher (ex: Jean 4:4, Jean 4:4-6, espérance...)"
+            className="w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm outline-none focus:border-accent"
+          />
+          <div className="mt-3 max-h-64 space-y-1 overflow-y-auto">
+            {refQuery ? (
+              exactMatches.length === 0 ? (
+                <p className="px-3 py-2 text-sm text-white/40">
+                  {activeVerses ? "Aucun verset trouvé pour cette référence." : "Chargement…"}
+                </p>
+              ) : refQuery.end === refQuery.start ? (
+                <button
+                  onClick={() => onAdd(exactMatches[0].reference, exactMatches[0].text, activeVersion)}
+                  className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/5"
+                >
+                  <span className="block font-medium text-accent2">{exactMatches[0].reference}</span>
+                  <span className="block truncate text-white/60">{exactMatches[0].text}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() =>
+                    onAddMany(
+                      exactMatches.map((m) => ({ reference: m.reference, text: m.text, version: activeVersion }))
+                    )
+                  }
+                  className="w-full rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-left text-sm hover:bg-accent/20"
+                >
+                  <span className="block font-medium text-accent2">
+                    Ajouter {refQuery.book} {refQuery.chapter}:{refQuery.start}-{refQuery.end} (
+                    {exactMatches.length} versets)
+                  </span>
+                  <span className="block text-white/60">
+                    Chaque verset sera ajouté séparément dans le déroulé.
+                  </span>
+                </button>
+              )
+            ) : (
+              <>
+                {results.map((v) => (
+                  <button
+                    key={v.reference}
+                    onClick={() => onAdd(v.reference, v.text, activeVersion)}
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/5"
+                  >
+                    <span className="block font-medium text-accent2">{v.reference}</span>
+                    <span className="block truncate text-white/60">{v.text}</span>
+                  </button>
+                ))}
+                {results.length === 0 && (
+                  <p className="px-3 py-2 text-sm text-white/40">
+                    {!activeVerses ? "Chargement…" : "Aucun résultat."}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </>
+      )}
 
       <button
         onClick={() => setShowCustom((v) => !v)}
