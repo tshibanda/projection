@@ -18,20 +18,42 @@ export default function LivePage() {
 
   useEffect(() => {
     let mounted = true;
+    let gotShow = false;
+
+    const applyState = (state: { show: Show | null; slideIndex: number; blackout: boolean }) => {
+      if (!mounted) return;
+      if (state.show) {
+        gotShow = true;
+        setShow(state.show);
+      }
+      setSlideIndex(state.slideIndex);
+      setBlackout(state.blackout);
+    };
+
     fetchLiveState(showId).then((state) => {
-      if (!mounted || !state) return;
-      if (state.show) setShow(state.show);
-      setSlideIndex(state.slideIndex);
-      setBlackout(state.blackout);
+      if (state) applyState(state);
     });
-    const unsubscribe = subscribeLiveState(showId, (state) => {
-      if (state.show) setShow(state.show);
-      setSlideIndex(state.slideIndex);
-      setBlackout(state.blackout);
-    });
+
+    const unsubscribe = subscribeLiveState(showId, applyState);
+
+    // Belt-and-suspenders: if the initial fetch and the SSE stream both
+    // miss the studio's state (a dropped connection right after the live
+    // window opens, for instance), keep polling until one succeeds
+    // instead of getting stuck on "waiting" forever.
+    const pollId = window.setInterval(() => {
+      if (gotShow) {
+        window.clearInterval(pollId);
+        return;
+      }
+      fetchLiveState(showId).then((state) => {
+        if (state) applyState(state);
+      });
+    }, 2000);
+
     return () => {
       mounted = false;
       unsubscribe();
+      window.clearInterval(pollId);
     };
   }, [showId]);
 
@@ -98,8 +120,14 @@ export default function LivePage() {
         />
       ) : (
         !transparent && (
-          <div className="flex h-full items-center justify-center bg-black text-sm text-white/30">
-            En attente de connexion au studio…
+          <div className="flex h-full flex-col items-center justify-center gap-3 bg-black text-sm text-white/30">
+            <span>En attente de connexion au studio…</span>
+            <button
+              onClick={() => window.location.reload()}
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/60 hover:bg-white/5"
+            >
+              Réessayer
+            </button>
           </div>
         )
       )}

@@ -26,12 +26,23 @@ export default function StudioShowPage() {
 
   useEffect(() => {
     const loaded = getShow(showId);
-    if (loaded && loaded.background.type !== "none" && loaded.style.transparentBg) {
-      // A background was chosen while "Fond transparent" was left on from
-      // an earlier default — that combination hides the background
-      // entirely, which is never what picking one meant. Fix it once.
-      loaded.style.transparentBg = false;
-      saveShow(loaded);
+    if (loaded) {
+      const isVideo = loaded.background.type === "videoFile" || loaded.background.type === "videoUrl";
+      const isImage = loaded.background.type === "imageFile" || loaded.background.type === "imageUrl";
+      if (isVideo && loaded.style.transparentBg) {
+        // A video was chosen while "Fond transparent" was left on from an
+        // earlier default — that combination hides the video entirely,
+        // which is never what picking one meant. Fix it once.
+        loaded.style.transparentBg = false;
+        saveShow(loaded);
+      } else if (isImage && !loaded.style.transparentBg) {
+        // An earlier build force-disabled this the moment an image was
+        // picked, which also flipped the live page's background to solid
+        // black and blocked genuine PNG transparency. Restore it once —
+        // images render regardless of this flag, so nothing is hidden.
+        loaded.style.transparentBg = true;
+        saveShow(loaded);
+      }
     }
     setShow(loaded ?? null);
   }, [showId]);
@@ -172,30 +183,35 @@ export default function StudioShowPage() {
 
   const setBackground = (background: BackgroundSource) => persist({ ...show, background });
 
-  // Picking an actual background contradicts "Fond transparent" (which
-  // hides any background on purpose, for OBS overlays) — turn it off so
-  // the media the user just chose is immediately visible.
-  const setBackgroundMedia = (background: BackgroundSource) =>
+  // Video always fully covers the frame and has no alpha channel, so
+  // picking one contradicts "Fond transparent" (which hides everything on
+  // purpose) — turn it off so the video is actually visible. Images are
+  // deliberately left alone: they render regardless of that flag, and
+  // forcing it off would also flip the live page's own background to
+  // solid black, which defeats a PNG's alpha channel — exactly what's
+  // needed to composite the output over an external video feed (OBS, a
+  // video mixer...).
+  const setVideoBackground = (background: BackgroundSource) =>
     persist({ ...show, background, style: { ...show.style, transparentBg: false } });
 
   const handleVideoFile = async (file: File) => {
     await storeMediaBlob(show.id, file);
-    setBackgroundMedia({ type: "videoFile", name: file.name });
+    setVideoBackground({ type: "videoFile", name: file.name });
   };
 
   const handleVideoUrl = async (url: string) => {
     await removeMediaBlob(show.id);
-    setBackgroundMedia({ type: "videoUrl", url });
+    setVideoBackground({ type: "videoUrl", url });
   };
 
   const handleImageFile = async (file: File) => {
     await storeMediaBlob(show.id, file);
-    setBackgroundMedia({ type: "imageFile", name: file.name });
+    setBackground({ type: "imageFile", name: file.name });
   };
 
   const handleImageUrl = async (url: string) => {
     await removeMediaBlob(show.id);
-    setBackgroundMedia({ type: "imageUrl", url });
+    setBackground({ type: "imageUrl", url });
   };
 
   const handleClearBackground = async () => {
@@ -264,6 +280,12 @@ export default function StudioShowPage() {
                 onMoveVerse={(p: Point) => setDragStyle((prev) => ({ ...prev, versePos: p }))}
                 onMoveReference={(p: Point) => setDragStyle((prev) => ({ ...prev, referencePos: p }))}
                 onMoveImage={(p: Point) => setDragStyle((prev) => ({ ...prev, imagePos: p }))}
+                onResizeVerse={(s) =>
+                  setDragStyle((prev) => ({ ...prev, verseBoxWidth: s.width, versePaddingY: s.paddingY }))
+                }
+                onResizeReference={(s) =>
+                  setDragStyle((prev) => ({ ...prev, referenceBoxWidth: s.width, referencePaddingY: s.paddingY }))
+                }
                 onVerseDragEnd={(p: Point) => {
                   setDragStyle(null);
                   persist({ ...show, style: { ...show.style, versePos: p } });
@@ -275,6 +297,17 @@ export default function StudioShowPage() {
                 onImageDragEnd={(p: Point) => {
                   setDragStyle(null);
                   persist({ ...show, style: { ...show.style, imagePos: p } });
+                }}
+                onVerseResizeEnd={(s) => {
+                  setDragStyle(null);
+                  persist({ ...show, style: { ...show.style, verseBoxWidth: s.width, versePaddingY: s.paddingY } });
+                }}
+                onReferenceResizeEnd={(s) => {
+                  setDragStyle(null);
+                  persist({
+                    ...show,
+                    style: { ...show.style, referenceBoxWidth: s.width, referencePaddingY: s.paddingY },
+                  });
                 }}
               />
             </div>

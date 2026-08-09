@@ -215,6 +215,25 @@ export default function StylePanel({ style, onChange, showImageControls = false 
         </div>
 
         <div>
+          <label className="mb-1 block text-white/60">Alignement du verset</label>
+          <div className="flex gap-2">
+            {(["left", "center", "right"] as const).map((a) => (
+              <button
+                key={a}
+                onClick={() => onChange({ verseTextAlign: a })}
+                className={`flex-1 rounded-lg border px-3 py-2 ${
+                  (style.verseTextAlign ?? "left") === a
+                    ? "border-accent bg-accent/20 text-white"
+                    : "border-white/10 text-white/60 hover:bg-white/5"
+                }`}
+              >
+                {a === "left" ? "Gauche" : a === "center" ? "Centre" : "Droite"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
           <label className="mb-1 flex justify-between text-white/60">
             <span>Largeur de la zone — verset</span>
             <span>{style.verseBoxWidth ?? 88}%</span>

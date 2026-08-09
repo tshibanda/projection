@@ -13,6 +13,7 @@ export interface Slide {
 }
 
 export type BandWidth = "full" | "fit";
+export type TextAlign = "left" | "center" | "right";
 
 export interface ShowStyle {
   fontFamily: "sans" | "serif" | "custom";
@@ -25,6 +26,7 @@ export interface ShowStyle {
   showShadow: boolean;
   versePos: Point;
   referencePos: Point;
+  verseTextAlign: TextAlign;
   verseBoxWidth: number; // max-width, percentage of canvas (left/right room)
   referenceBoxWidth: number;
   versePaddingY: number; // extra vertical breathing room, in cqw units (top/bottom room)
@@ -77,6 +79,7 @@ export const defaultStyle: ShowStyle = {
   showShadow: true,
   versePos: { x: 50, y: 50 },
   referencePos: { x: 50, y: 88 },
+  verseTextAlign: "left",
   verseBoxWidth: 88,
   referenceBoxWidth: 88,
   versePaddingY: 0,

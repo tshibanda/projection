@@ -4,6 +4,11 @@ import { useCallback, useEffect, useRef } from "react";
 import { Point, Slide, ShowStyle, BackgroundSource } from "@/lib/types";
 import { hexToRgba } from "@/lib/color";
 
+export interface BoxSize {
+  width: number;
+  paddingY: number;
+}
+
 interface ProjectionCanvasProps {
   mediaUrl: string | null;
   background: BackgroundSource;
@@ -11,29 +16,37 @@ interface ProjectionCanvasProps {
   style: ShowStyle;
   blackout: boolean;
   editable?: boolean;
-  // Called continuously while dragging, for immediate visual feedback only.
+  // Called continuously while dragging/resizing, for immediate visual feedback only.
   onMoveVerse?: (p: Point) => void;
   onMoveReference?: (p: Point) => void;
   onMoveImage?: (p: Point) => void;
-  // Called once when the drag ends, for persisting the final position.
+  onResizeVerse?: (s: BoxSize) => void;
+  onResizeReference?: (s: BoxSize) => void;
+  // Called once when the gesture ends, for persisting the final value.
   onVerseDragEnd?: (p: Point) => void;
   onReferenceDragEnd?: (p: Point) => void;
   onImageDragEnd?: (p: Point) => void;
+  onVerseResizeEnd?: (s: BoxSize) => void;
+  onReferenceResizeEnd?: (s: BoxSize) => void;
 }
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
 }
 
+const DRAG_THRESHOLD_PX = 4;
+
 // Clamps by the dragged element's own rendered size (not just its center
 // point) so it can never be dragged far enough to get cropped by the
 // canvas's overflow-hidden edge — moving an element never changes how
-// much of it is visible.
+// much of it is visible. A plain click (no real movement) never
+// repositions anything, only an actual drag past a small threshold does.
 function useDrag(
   containerRef: React.RefObject<HTMLDivElement>,
   onMove?: (p: Point) => void,
   onDragEnd?: (p: Point) => void
 ) {
+  const pointerDownAt = useRef<{ x: number; y: number } | null>(null);
   const dragging = useRef(false);
   const lastPoint = useRef<Point | null>(null);
 
@@ -57,37 +70,112 @@ function useDrag(
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (!onMove) return;
-      dragging.current = true;
+      pointerDownAt.current = { x: e.clientX, y: e.clientY };
+      dragging.current = false;
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
-      const p = toPoint(e);
-      if (p) {
-        lastPoint.current = p;
-        onMove(p);
-      }
     },
-    [toPoint, onMove]
+    [onMove]
   );
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (!dragging.current) return;
+      if (!pointerDownAt.current) return;
+      if (!dragging.current) {
+        const dx = e.clientX - pointerDownAt.current.x;
+        const dy = e.clientY - pointerDownAt.current.y;
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+        dragging.current = true;
+      }
       const p = toPoint(e);
       if (p) {
         lastPoint.current = p;
         onMove?.(p);
       }
     },
-    [toPoint, onMove]
+    [toPoint]
   );
 
   const onPointerUp = useCallback(() => {
     if (dragging.current && lastPoint.current) {
       onDragEnd?.(lastPoint.current);
     }
+    pointerDownAt.current = null;
     dragging.current = false;
   }, [onDragEnd]);
 
   return { onPointerDown, onPointerMove, onPointerUp };
+}
+
+// A corner handle that resizes a text box's width (left/right) and
+// vertical padding (top/bottom), symmetrically from its centered anchor.
+// Deliberately separate from useDrag so that moving a box (anywhere on
+// it) never resizes it, and resizing (only from the handle) never moves it.
+function useResizeHandle(
+  containerRef: React.RefObject<HTMLDivElement>,
+  getStart: () => BoxSize,
+  onResize?: (s: BoxSize) => void,
+  onResizeEnd?: (s: BoxSize) => void
+) {
+  const start = useRef<{ x: number; y: number; size: BoxSize } | null>(null);
+  const last = useRef<BoxSize | null>(null);
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.stopPropagation();
+      if (!onResize) return;
+      start.current = { x: e.clientX, y: e.clientY, size: getStart() };
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    },
+    [getStart, onResize]
+  );
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      e.stopPropagation();
+      if (!start.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const dxPct = ((e.clientX - start.current.x) / rect.width) * 100;
+      const dyPct = ((e.clientY - start.current.y) / rect.width) * 100;
+      const next: BoxSize = {
+        width: clamp(start.current.size.width + dxPct * 2, 20, 100),
+        paddingY: clamp(start.current.size.paddingY + dyPct, 0, 10),
+      };
+      last.current = next;
+      onResize?.(next);
+    },
+    [containerRef]
+  );
+
+  const onPointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      e.stopPropagation();
+      if (start.current && last.current) {
+        onResizeEnd?.(last.current);
+      }
+      start.current = null;
+      last.current = null;
+    },
+    [onResizeEnd]
+  );
+
+  return { onPointerDown, onPointerMove, onPointerUp };
+}
+
+function ResizeHandle({
+  handlers,
+}: {
+  handlers: ReturnType<typeof useResizeHandle>;
+}) {
+  return (
+    <div
+      {...handlers}
+      title="Redimensionner"
+      className="absolute -bottom-2 -right-2 flex h-4 w-4 cursor-nwse-resize touch-none items-center justify-center rounded-full border border-white/40 bg-accent text-[8px] text-white shadow"
+      onClick={(e) => e.stopPropagation()}
+    >
+      ⤡
+    </div>
+  );
 }
 
 export default function ProjectionCanvas({
@@ -100,9 +188,13 @@ export default function ProjectionCanvas({
   onMoveVerse,
   onMoveReference,
   onMoveImage,
+  onResizeVerse,
+  onResizeReference,
   onVerseDragEnd,
   onReferenceDragEnd,
   onImageDragEnd,
+  onVerseResizeEnd,
+  onReferenceResizeEnd,
 }: ProjectionCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const verseDrag = useDrag(
@@ -129,6 +221,22 @@ export default function ProjectionCanvas({
   const referenceBoxWidth = style.referenceBoxWidth ?? 88;
   const versePaddingY = style.versePaddingY ?? 0;
   const referencePaddingY = style.referencePaddingY ?? 0;
+
+  const verseResize = useResizeHandle(
+    containerRef,
+    useCallback(() => ({ width: verseBoxWidth, paddingY: versePaddingY }), [verseBoxWidth, versePaddingY]),
+    editable ? onResizeVerse : undefined,
+    editable ? onVerseResizeEnd : undefined
+  );
+  const refResize = useResizeHandle(
+    containerRef,
+    useCallback(
+      () => ({ width: referenceBoxWidth, paddingY: referencePaddingY }),
+      [referenceBoxWidth, referencePaddingY]
+    ),
+    editable ? onResizeReference : undefined,
+    editable ? onReferenceResizeEnd : undefined
+  );
 
   const isImageBg = background.type === "imageFile" || background.type === "imageUrl";
   const isVideoBg = background.type === "videoFile" || background.type === "videoUrl";
@@ -206,9 +314,15 @@ export default function ProjectionCanvas({
       {!blackout && slide && (
         <div
           {...(editable ? verseDrag : {})}
-          className={`absolute -translate-x-1/2 -translate-y-1/2 text-center ${
-            editable ? "cursor-move touch-none" : ""
-          } ${editable ? "rounded-lg outline-dashed outline-1 outline-white/25 hover:outline-accent" : ""}`}
+          className={`absolute -translate-x-1/2 -translate-y-1/2 ${
+            style.verseTextAlign === "right"
+              ? "text-right"
+              : style.verseTextAlign === "center"
+                ? "text-center"
+                : "text-left"
+          } ${editable ? "cursor-move touch-none" : ""} ${
+            editable ? "rounded-lg outline-dashed outline-1 outline-white/25 hover:outline-accent" : ""
+          }`}
           style={{ left: `${versePos.x}%`, top: `${versePos.y}%`, maxWidth: `${verseBoxWidth}%` }}
         >
           <div
@@ -243,6 +357,7 @@ export default function ProjectionCanvas({
               {slide.text}
             </p>
           </div>
+          {editable && <ResizeHandle handlers={verseResize} />}
         </div>
       )}
       {!blackout && slide && style.showReference && (
@@ -268,6 +383,7 @@ export default function ProjectionCanvas({
             {slide.reference}
             {slide.version ? ` (${slide.version})` : ""}
           </p>
+          {editable && <ResizeHandle handlers={refResize} />}
         </div>
       )}
     </div>
