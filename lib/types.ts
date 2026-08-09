@@ -1,0 +1,65 @@
+export type SlidePosition = "top" | "center" | "bottom";
+
+export interface Slide {
+  id: string;
+  reference: string;
+  text: string;
+}
+
+export type BandWidth = "full" | "fit";
+
+export interface ShowStyle {
+  fontFamily: "sans" | "serif";
+  fontSize: number; // in vw units
+  textColor: string;
+  showOutline: boolean;
+  showShadow: boolean;
+  position: SlidePosition;
+  overlayOpacity: number; // 0-90, dims the background video/image
+  showReference: boolean;
+  fadeTransition: boolean;
+  transparentBg: boolean; // OBS Browser Source mode: no video/gradient, transparent page background
+  bandEnabled: boolean; // colored band behind the text block
+  bandColor: string;
+  bandOpacity: number; // 0-100
+  bandWidth: BandWidth;
+}
+
+export type VideoSource =
+  | { type: "file"; name: string }
+  | { type: "url"; url: string }
+  | { type: "none" };
+
+export interface Show {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  slides: Slide[];
+  style: ShowStyle;
+  video: VideoSource;
+}
+
+export interface ServerLiveState {
+  show: Show | null;
+  slideIndex: number;
+  blackout: boolean;
+  updatedAt: number;
+}
+
+export const defaultStyle: ShowStyle = {
+  fontFamily: "serif",
+  fontSize: 4.2,
+  textColor: "#ffffff",
+  showOutline: true,
+  showShadow: true,
+  position: "center",
+  overlayOpacity: 45,
+  showReference: true,
+  fadeTransition: true,
+  transparentBg: false,
+  bandEnabled: false,
+  bandColor: "#000000",
+  bandOpacity: 55,
+  bandWidth: "fit",
+};
