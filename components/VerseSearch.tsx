@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseBibleJson, ImportedVerse } from "@/lib/bibleParse";
 import { parseReferenceQuery, referenceFor } from "@/lib/verseReference";
+import { normalizeForSearch } from "@/lib/textNormalize";
 import {
   listImportedVersionNames,
   loadBibleVersion,
@@ -24,11 +25,11 @@ interface VerseSearchProps {
 const MAX_IMPORT_BYTES = 30 * 1024 * 1024;
 
 function searchImported(verses: ImportedVerse[], query: string): ImportedVerse[] {
-  const q = query.trim().toLowerCase();
+  const q = normalizeForSearch(query.trim());
   if (!q) return verses.slice(0, 8);
   const results: ImportedVerse[] = [];
   for (const v of verses) {
-    if (v.reference.toLowerCase().includes(q) || v.text.toLowerCase().includes(q)) {
+    if (normalizeForSearch(v.reference).includes(q) || normalizeForSearch(v.text).includes(q)) {
       results.push(v);
       if (results.length >= 8) break;
     }
@@ -77,8 +78,8 @@ export default function VerseSearch({ onAdd, onAddMany }: VerseSearchProps) {
     if (!refQuery || !activeVerses) return [];
     const wanted: ImportedVerse[] = [];
     for (let v = refQuery.start; v <= refQuery.end; v++) {
-      const target = referenceFor(refQuery.book, refQuery.chapter, v).toLowerCase();
-      const found = activeVerses.find((av) => av.reference.toLowerCase() === target);
+      const target = normalizeForSearch(referenceFor(refQuery.book, refQuery.chapter, v));
+      const found = activeVerses.find((av) => normalizeForSearch(av.reference) === target);
       if (found) wanted.push(found);
     }
     return wanted;
