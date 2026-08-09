@@ -182,9 +182,7 @@ export default function StudioShowPage() {
   const addSlides = (items: { reference: string; text: string; version: string }[]) => {
     const newSlides = items.flatMap((it) => {
       const chunks = splitLongText(it.text);
-      return chunks.map((chunk, i) =>
-        newSlide(chunks.length > 1 && i > 0 ? `${it.reference} (suite)` : it.reference, chunk, it.version)
-      );
+      return chunks.map((chunk) => newSlide(it.reference, chunk, it.version));
     });
     persist({ ...show, slides: [...show.slides, ...newSlides] });
   };
@@ -200,7 +198,7 @@ export default function StudioShowPage() {
     const replacement =
       patch.text !== undefined
         ? splitLongText(merged.text).map((chunk, i) =>
-            i === 0 ? { ...merged, text: chunk } : newSlide(`${merged.reference} (suite)`, chunk, merged.version)
+            i === 0 ? { ...merged, text: chunk } : newSlide(merged.reference, chunk, merged.version)
           )
         : [merged];
     const slides = [...show.slides];

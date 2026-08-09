@@ -75,10 +75,17 @@ export default function LivePage() {
   }, [showId]);
 
   useEffect(() => {
-    const transparent = show?.style.transparentBg ?? false;
+    // Whenever there's actual background media (video or image), the page
+    // itself must always be transparent — for video the pixels cover the
+    // frame anyway, and for a PNG this is what lets its own alpha channel
+    // show through instead of a flat page-level black behind it. Only the
+    // "no background at all" case is genuinely togglable, and even then it
+    // defaults to transparent, never to opaque, unless explicitly set.
+    const hasMedia = !!show && show.background.type !== "none";
+    const transparent = hasMedia || (show?.style.transparentBg ?? true);
     document.documentElement.style.backgroundColor = transparent ? "transparent" : "#000";
     document.body.style.backgroundColor = transparent ? "transparent" : "#000";
-  }, [show?.style.transparentBg]);
+  }, [show, show?.style.transparentBg, show?.background.type]);
 
   useEffect(() => {
     document.title = "VerseFlow LIVE";
