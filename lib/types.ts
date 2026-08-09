@@ -25,6 +25,10 @@ export interface ShowStyle {
   showShadow: boolean;
   versePos: Point;
   referencePos: Point;
+  verseBoxWidth: number; // max-width, percentage of canvas (left/right room)
+  referenceBoxWidth: number;
+  versePaddingY: number; // extra vertical breathing room, in cqw units (top/bottom room)
+  referencePaddingY: number;
   overlayOpacity: number; // 0-90, dims the background video/image
   showReference: boolean;
   fadeTransition: boolean;
@@ -34,6 +38,8 @@ export interface ShowStyle {
   bandOpacity: number; // 0-100
   bandWidth: BandWidth;
   bandImage: string | null; // data URL
+  imagePos: Point; // background image placement, when background is an image
+  imageScale: number; // background image width, percentage of canvas width
 }
 
 export type BackgroundSource =
@@ -71,6 +77,10 @@ export const defaultStyle: ShowStyle = {
   showShadow: true,
   versePos: { x: 50, y: 50 },
   referencePos: { x: 50, y: 88 },
+  verseBoxWidth: 88,
+  referenceBoxWidth: 88,
+  versePaddingY: 0,
+  referencePaddingY: 0,
   overlayOpacity: 45,
   showReference: true,
   fadeTransition: true,
@@ -80,4 +90,6 @@ export const defaultStyle: ShowStyle = {
   bandOpacity: 55,
   bandWidth: "fit",
   bandImage: null,
+  imagePos: { x: 50, y: 50 },
+  imageScale: 100,
 };

@@ -263,6 +263,7 @@ export default function StudioShowPage() {
                 editable
                 onMoveVerse={(p: Point) => setDragStyle((prev) => ({ ...prev, versePos: p }))}
                 onMoveReference={(p: Point) => setDragStyle((prev) => ({ ...prev, referencePos: p }))}
+                onMoveImage={(p: Point) => setDragStyle((prev) => ({ ...prev, imagePos: p }))}
                 onVerseDragEnd={(p: Point) => {
                   setDragStyle(null);
                   persist({ ...show, style: { ...show.style, versePos: p } });
@@ -270,6 +271,10 @@ export default function StudioShowPage() {
                 onReferenceDragEnd={(p: Point) => {
                   setDragStyle(null);
                   persist({ ...show, style: { ...show.style, referencePos: p } });
+                }}
+                onImageDragEnd={(p: Point) => {
+                  setDragStyle(null);
+                  persist({ ...show, style: { ...show.style, imagePos: p } });
                 }}
               />
             </div>
@@ -310,6 +315,7 @@ export default function StudioShowPage() {
             <StylePanel
               style={show.style}
               onChange={(patch) => persist({ ...show, style: { ...show.style, ...patch } })}
+              showImageControls={show.background.type === "imageFile" || show.background.type === "imageUrl"}
             />
           </section>
         </div>

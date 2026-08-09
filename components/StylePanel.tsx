@@ -7,12 +7,13 @@ import { deleteStylePreset, listStylePresets, saveStylePreset, StylePreset } fro
 interface StylePanelProps {
   style: ShowStyle;
   onChange: (patch: Partial<ShowStyle>) => void;
+  showImageControls?: boolean;
 }
 
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 const MAX_FONT_BYTES = 6 * 1024 * 1024;
 
-export default function StylePanel({ style, onChange }: StylePanelProps) {
+export default function StylePanel({ style, onChange, showImageControls = false }: StylePanelProps) {
   const bandImageInputRef = useRef<HTMLInputElement>(null);
   const fontInputRef = useRef<HTMLInputElement>(null);
   const [presets, setPresets] = useState<StylePreset[]>([]);
@@ -213,6 +214,65 @@ export default function StylePanel({ style, onChange }: StylePanelProps) {
           </button>
         </div>
 
+        <div>
+          <label className="mb-1 flex justify-between text-white/60">
+            <span>Largeur de la zone — verset</span>
+            <span>{style.verseBoxWidth ?? 88}%</span>
+          </label>
+          <input
+            type="range"
+            min={20}
+            max={100}
+            value={style.verseBoxWidth ?? 88}
+            onChange={(e) => onChange({ verseBoxWidth: parseInt(e.target.value, 10) })}
+            className="w-full"
+          />
+        </div>
+        <div>
+          <label className="mb-1 flex justify-between text-white/60">
+            <span>Espace haut/bas — verset</span>
+            <span>{style.versePaddingY ?? 0}</span>
+          </label>
+          <input
+            type="range"
+            min={0}
+            max={10}
+            step={0.5}
+            value={style.versePaddingY ?? 0}
+            onChange={(e) => onChange({ versePaddingY: parseFloat(e.target.value) })}
+            className="w-full"
+          />
+        </div>
+        <div>
+          <label className="mb-1 flex justify-between text-white/60">
+            <span>Largeur de la zone — référence</span>
+            <span>{style.referenceBoxWidth ?? 88}%</span>
+          </label>
+          <input
+            type="range"
+            min={20}
+            max={100}
+            value={style.referenceBoxWidth ?? 88}
+            onChange={(e) => onChange({ referenceBoxWidth: parseInt(e.target.value, 10) })}
+            className="w-full"
+          />
+        </div>
+        <div>
+          <label className="mb-1 flex justify-between text-white/60">
+            <span>Espace haut/bas — référence</span>
+            <span>{style.referencePaddingY ?? 0}</span>
+          </label>
+          <input
+            type="range"
+            min={0}
+            max={10}
+            step={0.5}
+            value={style.referencePaddingY ?? 0}
+            onChange={(e) => onChange({ referencePaddingY: parseFloat(e.target.value) })}
+            className="w-full"
+          />
+        </div>
+
         <label className="flex items-center justify-between">
           <span className="text-white/60">Fond transparent</span>
           <input
@@ -274,6 +334,37 @@ export default function StylePanel({ style, onChange }: StylePanelProps) {
           />
         </label>
       </div>
+
+      {showImageControls && (
+        <div className="mt-6 border-t border-white/10 pt-4">
+          <h3 className="mb-3 text-sm font-semibold text-white/80">Image de fond</h3>
+          <div className="space-y-4 text-sm">
+            <div>
+              <label className="mb-1 flex justify-between text-white/60">
+                <span>Taille</span>
+                <span>{style.imageScale ?? 100}%</span>
+              </label>
+              <input
+                type="range"
+                min={10}
+                max={200}
+                value={style.imageScale ?? 100}
+                onChange={(e) => onChange({ imageScale: parseInt(e.target.value, 10) })}
+                className="w-full"
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-white/10 bg-ink px-3 py-2 text-xs text-white/50">
+              <span>Glissez l&apos;image dans l&apos;aperçu pour la repositionner.</span>
+              <button
+                onClick={() => onChange({ imagePos: defaultStyle.imagePos, imageScale: defaultStyle.imageScale })}
+                className="ml-2 shrink-0 whitespace-nowrap text-accent2 hover:underline"
+              >
+                Réinitialiser
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 border-t border-white/10 pt-4">
         <h3 className="mb-3 text-sm font-semibold text-white/80">Bandeau derrière le verset</h3>
