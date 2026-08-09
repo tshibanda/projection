@@ -36,9 +36,11 @@ export interface ShowStyle {
   bandImage: string | null; // data URL
 }
 
-export type VideoSource =
-  | { type: "file"; name: string }
-  | { type: "url"; url: string }
+export type BackgroundSource =
+  | { type: "videoFile"; name: string }
+  | { type: "videoUrl"; url: string }
+  | { type: "imageFile"; name: string }
+  | { type: "imageUrl"; url: string }
   | { type: "none" };
 
 export interface Show {
@@ -48,7 +50,7 @@ export interface Show {
   updatedAt: number;
   slides: Slide[];
   style: ShowStyle;
-  video: VideoSource;
+  background: BackgroundSource;
 }
 
 export interface ServerLiveState {

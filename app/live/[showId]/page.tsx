@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Show } from "@/lib/types";
 import { fetchLiveState, subscribeLiveState } from "@/lib/liveSync";
-import { loadVideoBlob } from "@/lib/videoDb";
+import { loadMediaBlob } from "@/lib/mediaDb";
 import ProjectionCanvas from "@/components/ProjectionCanvas";
 
 export default function LivePage() {
@@ -14,7 +14,7 @@ export default function LivePage() {
   const [show, setShow] = useState<Show | null>(null);
   const [slideIndex, setSlideIndex] = useState(0);
   const [blackout, setBlackout] = useState(false);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -49,26 +49,26 @@ export default function LivePage() {
     let cancelled = false;
     let objectUrl: string | null = null;
 
-    async function loadVideo() {
+    async function loadMedia() {
       if (!show) {
-        setVideoUrl(null);
+        setMediaUrl(null);
         return;
       }
-      if (show.video.type === "file") {
-        const blob = await loadVideoBlob(show.id);
+      if (show.background.type === "videoFile" || show.background.type === "imageFile") {
+        const blob = await loadMediaBlob(show.id);
         if (blob && !cancelled) {
           objectUrl = URL.createObjectURL(blob);
-          setVideoUrl(objectUrl);
+          setMediaUrl(objectUrl);
         } else if (!cancelled) {
-          setVideoUrl(null);
+          setMediaUrl(null);
         }
-      } else if (show.video.type === "url") {
-        setVideoUrl(show.video.url);
+      } else if (show.background.type === "videoUrl" || show.background.type === "imageUrl") {
+        setMediaUrl(show.background.url);
       } else {
-        setVideoUrl(null);
+        setMediaUrl(null);
       }
     }
-    loadVideo();
+    loadMedia();
 
     return () => {
       cancelled = true;
@@ -90,8 +90,8 @@ export default function LivePage() {
       </button>
       {show ? (
         <ProjectionCanvas
-          videoUrl={videoUrl}
-          video={show.video}
+          mediaUrl={mediaUrl}
+          background={show.background}
           slide={slide}
           style={show.style}
           blackout={blackout}

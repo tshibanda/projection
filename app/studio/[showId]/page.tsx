@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
-import { Point, Show, Slide, VideoSource } from "@/lib/types";
+import { BackgroundSource, Point, Show, Slide } from "@/lib/types";
 import { getShow, newSlide, saveShow } from "@/lib/store";
-import { loadVideoBlob, removeVideoBlob, storeVideoBlob } from "@/lib/videoDb";
+import { loadMediaBlob, removeMediaBlob, storeMediaBlob } from "@/lib/mediaDb";
 import { pushLiveState } from "@/lib/liveSync";
 import ProjectionCanvas from "@/components/ProjectionCanvas";
 import SlideList from "@/components/SlideList";
 import VerseSearch from "@/components/VerseSearch";
 import StylePanel from "@/components/StylePanel";
-import VideoPicker from "@/components/VideoPicker";
+import BackgroundPicker from "@/components/BackgroundPicker";
 
 export default function StudioShowPage() {
   const params = useParams<{ showId: string }>();
@@ -20,7 +20,7 @@ export default function StudioShowPage() {
   const [show, setShow] = useState<Show | null | undefined>(undefined);
   const [activeIndex, setActiveIndex] = useState(0);
   const [blackout, setBlackout] = useState(false);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [savedTick, setSavedTick] = useState(0);
   const [dragStyle, setDragStyle] = useState<Partial<Show["style"]> | null>(null);
 
@@ -38,29 +38,29 @@ export default function StudioShowPage() {
     let cancelled = false;
     let objectUrl: string | null = null;
 
-    async function loadVideo() {
+    async function loadMedia() {
       if (!show) return;
-      if (show.video.type === "file") {
-        const blob = await loadVideoBlob(show.id);
+      if (show.background.type === "videoFile" || show.background.type === "imageFile") {
+        const blob = await loadMediaBlob(show.id);
         if (blob && !cancelled) {
           objectUrl = URL.createObjectURL(blob);
-          setVideoUrl(objectUrl);
+          setMediaUrl(objectUrl);
         } else if (!cancelled) {
-          setVideoUrl(null);
+          setMediaUrl(null);
         }
-      } else if (show.video.type === "url") {
-        setVideoUrl(show.video.url);
+      } else if (show.background.type === "videoUrl" || show.background.type === "imageUrl") {
+        setMediaUrl(show.background.url);
       } else {
-        setVideoUrl(null);
+        setMediaUrl(null);
       }
     }
-    loadVideo();
+    loadMedia();
 
     return () => {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [show?.id, show?.video]);
+  }, [show?.id, show?.background]);
 
   useEffect(() => {
     if (!show) return;
@@ -162,21 +162,31 @@ export default function StudioShowPage() {
     else if (activeIndex === target) setActiveIndex(index);
   };
 
-  const setVideo = (video: VideoSource) => persist({ ...show, video });
+  const setBackground = (background: BackgroundSource) => persist({ ...show, background });
 
-  const handleFile = async (file: File) => {
-    await storeVideoBlob(show.id, file);
-    setVideo({ type: "file", name: file.name });
+  const handleVideoFile = async (file: File) => {
+    await storeMediaBlob(show.id, file);
+    setBackground({ type: "videoFile", name: file.name });
   };
 
-  const handleUrl = async (url: string) => {
-    await removeVideoBlob(show.id);
-    setVideo({ type: "url", url });
+  const handleVideoUrl = async (url: string) => {
+    await removeMediaBlob(show.id);
+    setBackground({ type: "videoUrl", url });
   };
 
-  const handleClearVideo = async () => {
-    await removeVideoBlob(show.id);
-    setVideo({ type: "none" });
+  const handleImageFile = async (file: File) => {
+    await storeMediaBlob(show.id, file);
+    setBackground({ type: "imageFile", name: file.name });
+  };
+
+  const handleImageUrl = async (url: string) => {
+    await removeMediaBlob(show.id);
+    setBackground({ type: "imageUrl", url });
+  };
+
+  const handleClearBackground = async () => {
+    await removeMediaBlob(show.id);
+    setBackground({ type: "none" });
   };
 
   return (
@@ -231,8 +241,8 @@ export default function StudioShowPage() {
             <h2 className="mb-2 text-sm font-semibold text-white/60">Aperçu</h2>
             <div className="aspect-video w-full overflow-hidden rounded-xl border border-white/10 shadow-2xl">
               <ProjectionCanvas
-                videoUrl={videoUrl}
-                video={show.video}
+                mediaUrl={mediaUrl}
+                background={show.background}
                 slide={activeSlide}
                 style={dragStyle ? { ...show.style, ...dragStyle } : show.style}
                 blackout={blackout}
@@ -275,11 +285,13 @@ export default function StudioShowPage() {
           </section>
 
           <section className="col-span-12 space-y-6 lg:col-span-3">
-            <VideoPicker
-              video={show.video}
-              onFile={handleFile}
-              onUrl={handleUrl}
-              onClear={handleClearVideo}
+            <BackgroundPicker
+              background={show.background}
+              onVideoFile={handleVideoFile}
+              onVideoUrl={handleVideoUrl}
+              onImageFile={handleImageFile}
+              onImageUrl={handleImageUrl}
+              onClear={handleClearBackground}
             />
             <StylePanel
               style={show.style}

@@ -54,7 +54,7 @@ function attachLiveWindowHandling(contents) {
           title: "VerseFlow LIVE",
           width: LIVE_WIDTH,
           height: LIVE_HEIGHT,
-          x: workArea.x + workArea.width - LIVE_WIDTH - LIVE_MARGIN,
+          x: workArea.x + LIVE_MARGIN,
           y: workArea.y + workArea.height - LIVE_HEIGHT - LIVE_MARGIN,
           frame: false,
           transparent: true,

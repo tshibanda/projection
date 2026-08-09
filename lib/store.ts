@@ -60,7 +60,7 @@ export function createShow(title: string): Show {
     updatedAt: now,
     slides: [],
     style: { ...defaultStyle },
-    video: { type: "none" },
+    background: { type: "none" },
   };
   saveShow(show);
   return show;

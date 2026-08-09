@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { Point, Slide, ShowStyle, VideoSource } from "@/lib/types";
+import { Point, Slide, ShowStyle, BackgroundSource } from "@/lib/types";
 import { hexToRgba } from "@/lib/color";
 
 interface ProjectionCanvasProps {
-  videoUrl: string | null;
-  video: VideoSource;
+  mediaUrl: string | null;
+  background: BackgroundSource;
   slide: Slide | null;
   style: ShowStyle;
   blackout: boolean;
@@ -80,8 +80,8 @@ function useDrag(
 }
 
 export default function ProjectionCanvas({
-  videoUrl,
-  video,
+  mediaUrl,
+  background,
   slide,
   style,
   blackout,
@@ -138,10 +138,10 @@ export default function ProjectionCanvas({
       className="relative h-full w-full overflow-hidden [container-type:inline-size]"
       style={{ background: style.transparentBg ? "transparent" : "#000" }}
     >
-      {!blackout && !style.transparentBg && videoUrl && (
+      {!blackout && !style.transparentBg && mediaUrl && (background.type === "videoFile" || background.type === "videoUrl") && (
         <video
-          key={videoUrl}
-          src={videoUrl}
+          key={mediaUrl}
+          src={mediaUrl}
           autoPlay
           loop
           muted
@@ -149,7 +149,16 @@ export default function ProjectionCanvas({
           className="absolute inset-0 h-full w-full object-cover"
         />
       )}
-      {!blackout && !style.transparentBg && !videoUrl && video.type === "none" && (
+      {!blackout && !style.transparentBg && mediaUrl && (background.type === "imageFile" || background.type === "imageUrl") && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={mediaUrl}
+          src={mediaUrl}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+      {!blackout && !style.transparentBg && !mediaUrl && background.type === "none" && (
         <div className="absolute inset-0 bg-gradient-to-br from-[#141a2c] via-[#0b0f1a] to-[#191227]" />
       )}
       {!blackout && !style.transparentBg && (
