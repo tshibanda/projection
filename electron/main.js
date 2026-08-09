@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, screen } = require("electron");
+const { app, BrowserWindow, Menu, shell, screen, ipcMain } = require("electron");
 const path = require("path");
 const http = require("http");
 
@@ -7,9 +7,21 @@ const LIVE_ASPECT_RATIO = 16 / 9;
 const LIVE_WIDTH = 480;
 const LIVE_HEIGHT = Math.round(LIVE_WIDTH / LIVE_ASPECT_RATIO);
 const LIVE_MARGIN = 24;
+const PRELOAD_PATH = path.join(__dirname, "preload.js");
 let mainWindow;
 let server;
 const liveWindows = new Map();
+
+// Relays state pushed by the studio window straight to the matching live
+// window's renderer, over IPC — same-process and independent of the
+// HTTP/SSE sync (which the live window still uses too, and which OBS's
+// Browser Source relies on since it isn't an Electron window at all).
+ipcMain.on("live-state-push", (_event, { showId, state }) => {
+  const win = liveWindows.get(`verseflow-live-${showId}`);
+  if (win && !win.isDestroyed()) {
+    win.webContents.send("live-state-update", state);
+  }
+});
 
 function getAppDir() {
   return app.isPackaged
@@ -65,6 +77,7 @@ function attachLiveWindowHandling(contents) {
           webPreferences: {
             contextIsolation: true,
             nodeIntegration: false,
+            preload: PRELOAD_PATH,
           },
         },
       };
@@ -103,6 +116,7 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: PRELOAD_PATH,
     },
   });
   attachLiveWindowHandling(mainWindow.webContents);

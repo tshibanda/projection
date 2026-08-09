@@ -106,12 +106,17 @@ function useDrag(
   return { onPointerDown, onPointerMove, onPointerUp };
 }
 
-// A corner handle that resizes a text box's width (left/right) and
-// vertical padding (top/bottom), symmetrically from its centered anchor.
-// Deliberately separate from useDrag so that moving a box (anywhere on
-// it) never resizes it, and resizing (only from the handle) never moves it.
-function useResizeHandle(
+type ResizeAxis = "width" | "paddingY";
+
+// One edge handle resizes a single axis (width from the left/right edges,
+// vertical padding from the top/bottom edges), symmetrically from the
+// box's centered anchor. Deliberately separate from useDrag so that
+// moving a box (anywhere on it) never resizes it, and resizing (only
+// from a handle) never moves it.
+function useEdgeResize(
   containerRef: React.RefObject<HTMLDivElement>,
+  axis: ResizeAxis,
+  invert: boolean,
   getStart: () => BoxSize,
   onResize?: (s: BoxSize) => void,
   onResizeEnd?: (s: BoxSize) => void
@@ -136,14 +141,16 @@ function useResizeHandle(
       const rect = containerRef.current.getBoundingClientRect();
       const dxPct = ((e.clientX - start.current.x) / rect.width) * 100;
       const dyPct = ((e.clientY - start.current.y) / rect.width) * 100;
-      const next: BoxSize = {
-        width: clamp(start.current.size.width + dxPct * 2, 20, 100),
-        paddingY: clamp(start.current.size.paddingY + dyPct, 0, 10),
-      };
+      const raw = axis === "width" ? dxPct : dyPct;
+      const delta = (invert ? -raw : raw) * (axis === "width" ? 2 : 1);
+      const next: BoxSize =
+        axis === "width"
+          ? { ...start.current.size, width: clamp(start.current.size.width + delta, 20, 100) }
+          : { ...start.current.size, paddingY: clamp(start.current.size.paddingY + delta, 0, 10) };
       last.current = next;
       onResize?.(next);
     },
-    [containerRef]
+    [containerRef, axis, invert]
   );
 
   const onPointerUp = useCallback(
@@ -161,20 +168,51 @@ function useResizeHandle(
   return { onPointerDown, onPointerMove, onPointerUp };
 }
 
-function ResizeHandle({
+const EDGE_HANDLE_POSITION: Record<"top" | "bottom" | "left" | "right", string> = {
+  top: "-top-1.5 left-1/2 -translate-x-1/2 cursor-ns-resize",
+  bottom: "-bottom-1.5 left-1/2 -translate-x-1/2 cursor-ns-resize",
+  left: "-left-1.5 top-1/2 -translate-y-1/2 cursor-ew-resize",
+  right: "-right-1.5 top-1/2 -translate-y-1/2 cursor-ew-resize",
+};
+
+function EdgeHandle({
+  position,
   handlers,
 }: {
-  handlers: ReturnType<typeof useResizeHandle>;
+  position: "top" | "bottom" | "left" | "right";
+  handlers: ReturnType<typeof useEdgeResize>;
 }) {
   return (
     <div
       {...handlers}
       title="Redimensionner"
-      className="absolute -bottom-2 -right-2 flex h-4 w-4 cursor-nwse-resize touch-none items-center justify-center rounded-full border border-white/40 bg-accent text-[8px] text-white shadow"
-      onClick={(e) => e.stopPropagation()}
-    >
-      ⤡
-    </div>
+      className={`absolute h-3 w-3 touch-none rounded-full border border-white/40 bg-accent shadow ${EDGE_HANDLE_POSITION[position]}`}
+    />
+  );
+}
+
+function ResizeHandles({
+  containerRef,
+  getStart,
+  onResize,
+  onResizeEnd,
+}: {
+  containerRef: React.RefObject<HTMLDivElement>;
+  getStart: () => BoxSize;
+  onResize?: (s: BoxSize) => void;
+  onResizeEnd?: (s: BoxSize) => void;
+}) {
+  const top = useEdgeResize(containerRef, "paddingY", true, getStart, onResize, onResizeEnd);
+  const bottom = useEdgeResize(containerRef, "paddingY", false, getStart, onResize, onResizeEnd);
+  const left = useEdgeResize(containerRef, "width", true, getStart, onResize, onResizeEnd);
+  const right = useEdgeResize(containerRef, "width", false, getStart, onResize, onResizeEnd);
+  return (
+    <>
+      <EdgeHandle position="top" handlers={top} />
+      <EdgeHandle position="bottom" handlers={bottom} />
+      <EdgeHandle position="left" handlers={left} />
+      <EdgeHandle position="right" handlers={right} />
+    </>
   );
 }
 
@@ -222,20 +260,13 @@ export default function ProjectionCanvas({
   const versePaddingY = style.versePaddingY ?? 0;
   const referencePaddingY = style.referencePaddingY ?? 0;
 
-  const verseResize = useResizeHandle(
-    containerRef,
-    useCallback(() => ({ width: verseBoxWidth, paddingY: versePaddingY }), [verseBoxWidth, versePaddingY]),
-    editable ? onResizeVerse : undefined,
-    editable ? onVerseResizeEnd : undefined
+  const getVerseSize = useCallback(
+    () => ({ width: verseBoxWidth, paddingY: versePaddingY }),
+    [verseBoxWidth, versePaddingY]
   );
-  const refResize = useResizeHandle(
-    containerRef,
-    useCallback(
-      () => ({ width: referenceBoxWidth, paddingY: referencePaddingY }),
-      [referenceBoxWidth, referencePaddingY]
-    ),
-    editable ? onResizeReference : undefined,
-    editable ? onReferenceResizeEnd : undefined
+  const getReferenceSize = useCallback(
+    () => ({ width: referenceBoxWidth, paddingY: referencePaddingY }),
+    [referenceBoxWidth, referencePaddingY]
   );
 
   const isImageBg = background.type === "imageFile" || background.type === "imageUrl";
@@ -323,7 +354,12 @@ export default function ProjectionCanvas({
           } ${editable ? "cursor-move touch-none" : ""} ${
             editable ? "rounded-lg outline-dashed outline-1 outline-white/25 hover:outline-accent" : ""
           }`}
-          style={{ left: `${versePos.x}%`, top: `${versePos.y}%`, maxWidth: `${verseBoxWidth}%` }}
+          style={{
+            left: `${versePos.x}%`,
+            top: `${versePos.y}%`,
+            width: "max-content",
+            maxWidth: `${verseBoxWidth}%`,
+          }}
         >
           <div
             className={
@@ -357,7 +393,14 @@ export default function ProjectionCanvas({
               {slide.text}
             </p>
           </div>
-          {editable && <ResizeHandle handlers={verseResize} />}
+          {editable && (
+            <ResizeHandles
+              containerRef={containerRef}
+              getStart={getVerseSize}
+              onResize={onResizeVerse}
+              onResizeEnd={onVerseResizeEnd}
+            />
+          )}
         </div>
       )}
       {!blackout && slide && style.showReference && (
@@ -366,7 +409,12 @@ export default function ProjectionCanvas({
           className={`absolute -translate-x-1/2 -translate-y-1/2 text-center ${
             editable ? "cursor-move touch-none rounded-lg outline-dashed outline-1 outline-white/25 hover:outline-accent" : ""
           }`}
-          style={{ left: `${referencePos.x}%`, top: `${referencePos.y}%`, maxWidth: `${referenceBoxWidth}%` }}
+          style={{
+            left: `${referencePos.x}%`,
+            top: `${referencePos.y}%`,
+            width: "max-content",
+            maxWidth: `${referenceBoxWidth}%`,
+          }}
         >
           <p
             className={[
@@ -383,7 +431,14 @@ export default function ProjectionCanvas({
             {slide.reference}
             {slide.version ? ` (${slide.version})` : ""}
           </p>
-          {editable && <ResizeHandle handlers={refResize} />}
+          {editable && (
+            <ResizeHandles
+              containerRef={containerRef}
+              getStart={getReferenceSize}
+              onResize={onResizeReference}
+              onResizeEnd={onReferenceResizeEnd}
+            />
+          )}
         </div>
       )}
     </div>

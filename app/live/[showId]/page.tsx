@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Show } from "@/lib/types";
 import { fetchLiveState, subscribeLiveState } from "@/lib/liveSync";
+import { subscribeElectronLiveState } from "@/lib/electronBridge";
 import { loadMediaBlob } from "@/lib/mediaDb";
 import ProjectionCanvas from "@/components/ProjectionCanvas";
 
@@ -36,6 +37,21 @@ export default function LivePage() {
 
     const unsubscribe = subscribeLiveState(showId, applyState);
 
+    // In the desktop app, also listen on the direct IPC relay from the
+    // studio window — same-process, so it isn't affected by whatever
+    // might be interrupting the HTTP/SSE path. The payload here mirrors
+    // what the studio pushes: a partial {show?, slideIndex?, blackout?}.
+    const unsubscribeElectron = subscribeElectronLiveState((raw) => {
+      const patch = raw as { show?: Show; slideIndex?: number; blackout?: boolean };
+      if (!mounted) return;
+      if (patch.show) {
+        gotShow = true;
+        setShow(patch.show);
+      }
+      if (typeof patch.slideIndex === "number") setSlideIndex(patch.slideIndex);
+      if (typeof patch.blackout === "boolean") setBlackout(patch.blackout);
+    });
+
     // Belt-and-suspenders: if the initial fetch and the SSE stream both
     // miss the studio's state (a dropped connection right after the live
     // window opens, for instance), keep polling until one succeeds
@@ -53,6 +69,7 @@ export default function LivePage() {
     return () => {
       mounted = false;
       unsubscribe();
+      unsubscribeElectron();
       window.clearInterval(pollId);
     };
   }, [showId]);
