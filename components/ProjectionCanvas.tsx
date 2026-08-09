@@ -6,7 +6,7 @@ import { hexToRgba } from "@/lib/color";
 
 export interface BoxSize {
   width: number;
-  paddingY: number;
+  height: number;
 }
 
 interface ProjectionCanvasProps {
@@ -106,13 +106,14 @@ function useDrag(
   return { onPointerDown, onPointerMove, onPointerUp };
 }
 
-type ResizeAxis = "width" | "paddingY";
+type ResizeAxis = "width" | "height";
 
 // One edge handle resizes a single axis (width from the left/right edges,
-// vertical padding from the top/bottom edges), symmetrically from the
-// box's centered anchor. Deliberately separate from useDrag so that
-// moving a box (anywhere on it) never resizes it, and resizing (only
-// from a handle) never moves it.
+// height from the top/bottom edges), symmetrically from the box's centered
+// anchor, so the box's on-screen footprint is entirely user-controlled and
+// never shifts based on how much text it holds. Deliberately separate from
+// useDrag so that moving a box (anywhere on it) never resizes it, and
+// resizing (only from a handle) never moves it.
 function useEdgeResize(
   containerRef: React.RefObject<HTMLDivElement>,
   axis: ResizeAxis,
@@ -140,13 +141,13 @@ function useEdgeResize(
       if (!start.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const dxPct = ((e.clientX - start.current.x) / rect.width) * 100;
-      const dyPct = ((e.clientY - start.current.y) / rect.width) * 100;
+      const dyPct = ((e.clientY - start.current.y) / rect.height) * 100;
       const raw = axis === "width" ? dxPct : dyPct;
-      const delta = (invert ? -raw : raw) * (axis === "width" ? 2 : 1);
+      const delta = (invert ? -raw : raw) * 2;
       const next: BoxSize =
         axis === "width"
-          ? { ...start.current.size, width: clamp(start.current.size.width + delta, 20, 100) }
-          : { ...start.current.size, paddingY: clamp(start.current.size.paddingY + delta, 0, 10) };
+          ? { ...start.current.size, width: clamp(start.current.size.width + delta, 15, 100) }
+          : { ...start.current.size, height: clamp(start.current.size.height + delta, 5, 95) };
       last.current = next;
       onResize?.(next);
     },
@@ -202,8 +203,8 @@ function ResizeHandles({
   onResize?: (s: BoxSize) => void;
   onResizeEnd?: (s: BoxSize) => void;
 }) {
-  const top = useEdgeResize(containerRef, "paddingY", true, getStart, onResize, onResizeEnd);
-  const bottom = useEdgeResize(containerRef, "paddingY", false, getStart, onResize, onResizeEnd);
+  const top = useEdgeResize(containerRef, "height", true, getStart, onResize, onResizeEnd);
+  const bottom = useEdgeResize(containerRef, "height", false, getStart, onResize, onResizeEnd);
   const left = useEdgeResize(containerRef, "width", true, getStart, onResize, onResizeEnd);
   const right = useEdgeResize(containerRef, "width", false, getStart, onResize, onResizeEnd);
   return (
@@ -257,16 +258,17 @@ export default function ProjectionCanvas({
   const imageScale = style.imageScale ?? 100;
   const verseBoxWidth = style.verseBoxWidth ?? 88;
   const referenceBoxWidth = style.referenceBoxWidth ?? 88;
-  const versePaddingY = style.versePaddingY ?? 0;
-  const referencePaddingY = style.referencePaddingY ?? 0;
+  const verseBoxHeight = style.verseBoxHeight ?? 40;
+  const referenceBoxHeight = style.referenceBoxHeight ?? 12;
+  const referenceFontSize = style.referenceFontSize ?? Math.max(style.fontSize * 0.32, 1);
 
   const getVerseSize = useCallback(
-    () => ({ width: verseBoxWidth, paddingY: versePaddingY }),
-    [verseBoxWidth, versePaddingY]
+    () => ({ width: verseBoxWidth, height: verseBoxHeight }),
+    [verseBoxWidth, verseBoxHeight]
   );
   const getReferenceSize = useCallback(
-    () => ({ width: referenceBoxWidth, paddingY: referencePaddingY }),
-    [referenceBoxWidth, referencePaddingY]
+    () => ({ width: referenceBoxWidth, height: referenceBoxHeight }),
+    [referenceBoxWidth, referenceBoxHeight]
   );
 
   const isImageBg = background.type === "imageFile" || background.type === "imageUrl";
@@ -336,7 +338,10 @@ export default function ProjectionCanvas({
       {!blackout && rootIsOpaqueFallback && (
         <div className="absolute inset-0 bg-gradient-to-br from-[#141a2c] via-[#0b0f1a] to-[#191227]" />
       )}
-      {!blackout && !style.transparentBg && (
+      {/* The dark veil is a flat layer, so it would mask a PNG's own alpha
+          wherever it's laid over the image — it's scoped to video only, the
+          one background type that's always fully opaque anyway. */}
+      {!blackout && !style.transparentBg && isVideoBg && (
         <div
           className="absolute inset-0 bg-black"
           style={{ opacity: style.overlayOpacity / 100 }}
@@ -346,52 +351,57 @@ export default function ProjectionCanvas({
         <div
           {...(editable ? verseDrag : {})}
           className={`absolute -translate-x-1/2 -translate-y-1/2 ${
-            style.verseTextAlign === "right"
-              ? "text-right"
-              : style.verseTextAlign === "center"
-                ? "text-center"
-                : "text-left"
-          } ${editable ? "cursor-move touch-none" : ""} ${
-            editable ? "rounded-lg outline-dashed outline-1 outline-white/25 hover:outline-accent" : ""
-          }`}
+            editable ? "cursor-move touch-none" : ""
+          } ${editable ? "rounded-lg outline-dashed outline-1 outline-white/25 hover:outline-accent" : ""}`}
           style={{
             left: `${versePos.x}%`,
             top: `${versePos.y}%`,
-            width: "max-content",
-            maxWidth: `${verseBoxWidth}%`,
+            width: `${verseBoxWidth}%`,
+            height: `${verseBoxHeight}%`,
           }}
         >
+          {/* Clipping lives on this inner wrapper, not the box itself, so the
+              resize handles (anchored on the box's own border) stay fully
+              interactive instead of being clipped along with overflow text. */}
           <div
-            className={
-              style.bandEnabled
-                ? style.bandWidth === "full"
-                  ? "w-full rounded-xl px-[4%] py-[3%]"
-                  : "inline-block rounded-xl px-[4%] py-[2%]"
-                : ""
-            }
-            style={style.bandEnabled ? bandBackground : undefined}
+            className={`flex h-full w-full flex-col justify-center overflow-hidden ${
+              style.verseTextAlign === "right"
+                ? "items-end text-right"
+                : style.verseTextAlign === "center"
+                  ? "items-center text-center"
+                  : "items-start text-left"
+            }`}
           >
-            <p
-              className={[
-                style.fontFamily === "serif"
-                  ? "font-serif italic"
-                  : style.fontFamily === "sans"
-                    ? "font-sans font-semibold"
-                    : "",
-                style.showOutline ? "text-outline" : "",
-                style.showShadow ? "text-shadow-strong" : "",
-                "leading-tight transition-opacity duration-300",
-              ].join(" ")}
-              style={{
-                fontSize: `${style.fontSize}cqw`,
-                color: style.textColor,
-                fontFamily: verseFontFamily,
-                paddingTop: `${versePaddingY}cqw`,
-                paddingBottom: `${versePaddingY}cqw`,
-              }}
+            <div
+              className={
+                style.bandEnabled
+                  ? style.bandWidth === "full"
+                    ? "w-full rounded-xl px-[4%] py-[3%]"
+                    : "inline-block rounded-xl px-[4%] py-[2%]"
+                  : ""
+              }
+              style={style.bandEnabled ? bandBackground : undefined}
             >
-              {slide.text}
-            </p>
+              <p
+                className={[
+                  style.fontFamily === "serif"
+                    ? "font-serif italic"
+                    : style.fontFamily === "sans"
+                      ? "font-sans font-semibold"
+                      : "",
+                  style.showOutline ? "text-outline" : "",
+                  style.showShadow ? "text-shadow-strong" : "",
+                  "leading-tight transition-opacity duration-300",
+                ].join(" ")}
+                style={{
+                  fontSize: `${style.fontSize}cqw`,
+                  color: style.textColor,
+                  fontFamily: verseFontFamily,
+                }}
+              >
+                {slide.text}
+              </p>
+            </div>
           </div>
           {editable && (
             <ResizeHandles
@@ -406,31 +416,31 @@ export default function ProjectionCanvas({
       {!blackout && slide && style.showReference && (
         <div
           {...(editable ? refDrag : {})}
-          className={`absolute -translate-x-1/2 -translate-y-1/2 text-center ${
+          className={`absolute -translate-x-1/2 -translate-y-1/2 ${
             editable ? "cursor-move touch-none rounded-lg outline-dashed outline-1 outline-white/25 hover:outline-accent" : ""
           }`}
           style={{
             left: `${referencePos.x}%`,
             top: `${referencePos.y}%`,
-            width: "max-content",
-            maxWidth: `${referenceBoxWidth}%`,
+            width: `${referenceBoxWidth}%`,
+            height: `${referenceBoxHeight}%`,
           }}
         >
-          <p
-            className={[
-              style.showShadow ? "text-shadow-strong" : "",
-              "font-sans uppercase tracking-widest",
-            ].join(" ")}
-            style={{
-              fontSize: `${Math.max(style.fontSize * 0.32, 1)}cqw`,
-              color: style.referenceColor ?? "#22d3ee",
-              paddingTop: `${referencePaddingY}cqw`,
-              paddingBottom: `${referencePaddingY}cqw`,
-            }}
-          >
-            {slide.reference}
-            {slide.version ? ` (${slide.version})` : ""}
-          </p>
+          <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden text-center">
+            <p
+              className={[
+                style.showShadow ? "text-shadow-strong" : "",
+                "font-sans uppercase tracking-widest",
+              ].join(" ")}
+              style={{
+                fontSize: `${referenceFontSize}cqw`,
+                color: style.referenceColor ?? "#22d3ee",
+              }}
+            >
+              {slide.reference}
+              {slide.version ? ` (${slide.version})` : ""}
+            </p>
+          </div>
           {editable && (
             <ResizeHandles
               containerRef={containerRef}

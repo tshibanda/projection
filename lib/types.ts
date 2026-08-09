@@ -19,7 +19,8 @@ export interface ShowStyle {
   fontFamily: "sans" | "serif" | "custom";
   customFontName: string | null; // font-family name registered via FontFace, when fontFamily === "custom"
   customFontData: string | null; // data URL of the imported font file
-  fontSize: number; // in vw units
+  fontSize: number; // in cqw units
+  referenceFontSize: number; // in cqw units, independent of fontSize
   textColor: string;
   referenceColor: string;
   showOutline: boolean;
@@ -27,11 +28,11 @@ export interface ShowStyle {
   versePos: Point;
   referencePos: Point;
   verseTextAlign: TextAlign;
-  verseBoxWidth: number; // max-width, percentage of canvas (left/right room)
+  verseBoxWidth: number; // fixed width, percentage of canvas
   referenceBoxWidth: number;
-  versePaddingY: number; // extra vertical breathing room, in cqw units (top/bottom room)
-  referencePaddingY: number;
-  overlayOpacity: number; // 0-90, dims the background video/image
+  verseBoxHeight: number; // fixed height, percentage of canvas
+  referenceBoxHeight: number;
+  overlayOpacity: number; // 0-90, dims the background video
   showReference: boolean;
   fadeTransition: boolean;
   transparentBg: boolean; // no video/gradient, transparent page background (e.g. OBS Browser Source)
@@ -73,6 +74,7 @@ export const defaultStyle: ShowStyle = {
   customFontName: null,
   customFontData: null,
   fontSize: 4.2,
+  referenceFontSize: 1.4,
   textColor: "#ffffff",
   referenceColor: "#22d3ee",
   showOutline: true,
@@ -82,8 +84,8 @@ export const defaultStyle: ShowStyle = {
   verseTextAlign: "left",
   verseBoxWidth: 88,
   referenceBoxWidth: 88,
-  versePaddingY: 0,
-  referencePaddingY: 0,
+  verseBoxHeight: 40,
+  referenceBoxHeight: 12,
   overlayOpacity: 45,
   showReference: true,
   fadeTransition: true,
