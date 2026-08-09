@@ -88,16 +88,33 @@ export default function StudioShowPage() {
 
   const liveWindowRef = useRef<Window | null>(null);
 
-  const openLiveWindow = useCallback(() => {
-    if (!show) return;
-    if (!liveWindowRef.current || liveWindowRef.current.closed) {
-      liveWindowRef.current = window.open(
-        `/live/${show.id}`,
-        `verseflow-live-${show.id}`,
-        "noopener"
-      );
-    }
-  }, [show]);
+  const openLiveWindow = useCallback(
+    (overrides?: { slideIndex?: number; blackout?: boolean }) => {
+      if (!show) return;
+      // Always push right before opening/focusing — covers every call site
+      // (this button, goTo, keyboard nav) without relying on the
+      // mount-time push having already landed on the server, and
+      // refreshes an already-open window too in case it missed an
+      // earlier update. Callers that just changed activeIndex/blackout
+      // pass the new values directly since React state hasn't
+      // re-rendered yet at this point in the same tick.
+      pushLiveState(show.id, {
+        show,
+        slideIndex: overrides?.slideIndex ?? activeIndex,
+        blackout: overrides?.blackout ?? blackout,
+      });
+      if (!liveWindowRef.current || liveWindowRef.current.closed) {
+        liveWindowRef.current = window.open(
+          `/live/${show.id}`,
+          `verseflow-live-${show.id}`,
+          "noopener"
+        );
+      } else {
+        liveWindowRef.current.focus();
+      }
+    },
+    [show, activeIndex, blackout]
+  );
 
   const goTo = useCallback(
     (index: number) => {
@@ -105,10 +122,10 @@ export default function StudioShowPage() {
       const clamped = Math.max(0, Math.min(index, show.slides.length - 1));
       setActiveIndex(clamped);
       setBlackout(false);
-      // Push before opening: a brand-new live window's first fetch would
-      // otherwise race the state update and briefly show the old slide.
-      pushLiveState(show.id, { show, slideIndex: clamped, blackout: false });
-      openLiveWindow();
+      // Pass the new index/blackout directly: React state hasn't
+      // re-rendered yet, so openLiveWindow's own closure still has the
+      // old values at this point in the same tick.
+      openLiveWindow({ slideIndex: clamped, blackout: false });
     },
     [show, openLiveWindow]
   );
@@ -277,7 +294,7 @@ export default function StudioShowPage() {
               {blackout ? "Écran noir actif" : "Passer à l'écran noir"}
             </button>
             <button
-              onClick={openLiveWindow}
+              onClick={() => openLiveWindow()}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent/90"
             >
               Ouvrir le Live ↗

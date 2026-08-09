@@ -6,6 +6,7 @@ import { Show } from "@/lib/types";
 import { fetchLiveState, subscribeLiveState } from "@/lib/liveSync";
 import { subscribeElectronLiveState } from "@/lib/electronBridge";
 import { loadMediaBlob } from "@/lib/mediaDb";
+import { getShow } from "@/lib/store";
 import ProjectionCanvas from "@/components/ProjectionCanvas";
 
 export default function LivePage() {
@@ -20,6 +21,17 @@ export default function LivePage() {
   useEffect(() => {
     let mounted = true;
     let gotShow = false;
+
+    // The live window shares localStorage with the studio window (same
+    // app origin), so if this show is already saved there, show it right
+    // away instead of blanking on "waiting" while the network/IPC push
+    // catches up — which never happens at all if, say, the server process
+    // was restarted since the studio last pushed. This is a display-only
+    // head start: the server push below (SSE/poll/IPC) is still the source
+    // of truth for the live slide index and blackout state, and overwrites
+    // this the moment it arrives.
+    const localShow = getShow(showId);
+    if (localShow) setShow(localShow);
 
     const applyState = (state: { show: Show | null; slideIndex: number; blackout: boolean }) => {
       if (!mounted) return;
@@ -54,8 +66,9 @@ export default function LivePage() {
 
     // Belt-and-suspenders: if the initial fetch and the SSE stream both
     // miss the studio's state (a dropped connection right after the live
-    // window opens, for instance), keep polling until one succeeds
-    // instead of getting stuck on "waiting" forever.
+    // window opens, for instance), keep polling until one succeeds instead
+    // of getting stuck on "waiting" forever. Runs on a local server, so a
+    // tight interval costs nothing.
     const pollId = window.setInterval(() => {
       if (gotShow) {
         window.clearInterval(pollId);
@@ -64,7 +77,7 @@ export default function LivePage() {
       fetchLiveState(showId).then((state) => {
         if (state) applyState(state);
       });
-    }, 2000);
+    }, 500);
 
     return () => {
       mounted = false;
