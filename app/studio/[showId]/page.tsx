@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
-import { Show, VideoSource } from "@/lib/types";
+import { Point, Show, VideoSource } from "@/lib/types";
 import { getShow, newSlide, saveShow } from "@/lib/store";
 import { loadVideoBlob, removeVideoBlob, storeVideoBlob } from "@/lib/videoDb";
 import { pushLiveState } from "@/lib/liveSync";
@@ -22,6 +22,7 @@ export default function StudioShowPage() {
   const [blackout, setBlackout] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [savedTick, setSavedTick] = useState(0);
+  const [dragStyle, setDragStyle] = useState<Partial<Show["style"]> | null>(null);
 
   useEffect(() => {
     setShow(getShow(showId) ?? null);
@@ -220,8 +221,19 @@ export default function StudioShowPage() {
                 videoUrl={videoUrl}
                 video={show.video}
                 slide={activeSlide}
-                style={show.style}
+                style={dragStyle ? { ...show.style, ...dragStyle } : show.style}
                 blackout={blackout}
+                editable
+                onMoveVerse={(p: Point) => setDragStyle((prev) => ({ ...prev, versePos: p }))}
+                onMoveReference={(p: Point) => setDragStyle((prev) => ({ ...prev, referencePos: p }))}
+                onVerseDragEnd={(p: Point) => {
+                  setDragStyle(null);
+                  persist({ ...show, style: { ...show.style, versePos: p } });
+                }}
+                onReferenceDragEnd={(p: Point) => {
+                  setDragStyle(null);
+                  persist({ ...show, style: { ...show.style, referencePos: p } });
+                }}
               />
             </div>
             <div className="mt-3 flex items-center justify-between">

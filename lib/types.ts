@@ -1,5 +1,10 @@
 export type SlidePosition = "top" | "center" | "bottom";
 
+export interface Point {
+  x: number; // percentage, 0-100
+  y: number; // percentage, 0-100
+}
+
 export interface Slide {
   id: string;
   reference: string;
@@ -15,8 +20,8 @@ export interface ShowStyle {
   textColor: string;
   showOutline: boolean;
   showShadow: boolean;
-  versePosition: SlidePosition;
-  referencePosition: SlidePosition;
+  versePos: Point;
+  referencePos: Point;
   overlayOpacity: number; // 0-90, dims the background video/image
   showReference: boolean;
   fadeTransition: boolean;
@@ -56,8 +61,8 @@ export const defaultStyle: ShowStyle = {
   textColor: "#ffffff",
   showOutline: true,
   showShadow: true,
-  versePosition: "center",
-  referencePosition: "bottom",
+  versePos: { x: 50, y: 50 },
+  referencePos: { x: 50, y: 88 },
   overlayOpacity: 45,
   showReference: true,
   fadeTransition: true,

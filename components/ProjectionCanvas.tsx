@@ -1,6 +1,7 @@
 "use client";
 
-import { Slide, ShowStyle, VideoSource } from "@/lib/types";
+import { useCallback, useRef } from "react";
+import { Point, Slide, ShowStyle, VideoSource } from "@/lib/types";
 import { hexToRgba } from "@/lib/color";
 
 interface ProjectionCanvasProps {
@@ -9,13 +10,74 @@ interface ProjectionCanvasProps {
   slide: Slide | null;
   style: ShowStyle;
   blackout: boolean;
+  editable?: boolean;
+  // Called continuously while dragging, for immediate visual feedback only.
+  onMoveVerse?: (p: Point) => void;
+  onMoveReference?: (p: Point) => void;
+  // Called once when the drag ends, for persisting the final position.
+  onVerseDragEnd?: (p: Point) => void;
+  onReferenceDragEnd?: (p: Point) => void;
 }
 
-const positionClasses: Record<ShowStyle["versePosition"], string> = {
-  top: "items-start pt-[6%]",
-  center: "items-center",
-  bottom: "items-end pb-[6%]",
-};
+function clamp(n: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, n));
+}
+
+function useDrag(
+  containerRef: React.RefObject<HTMLDivElement>,
+  onMove?: (p: Point) => void,
+  onDragEnd?: (p: Point) => void
+) {
+  const dragging = useRef(false);
+  const lastPoint = useRef<Point | null>(null);
+
+  const toPoint = useCallback(
+    (clientX: number, clientY: number): Point | null => {
+      if (!containerRef.current) return null;
+      const rect = containerRef.current.getBoundingClientRect();
+      return {
+        x: clamp(((clientX - rect.left) / rect.width) * 100, 0, 100),
+        y: clamp(((clientY - rect.top) / rect.height) * 100, 0, 100),
+      };
+    },
+    [containerRef]
+  );
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (!onMove) return;
+      dragging.current = true;
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      const p = toPoint(e.clientX, e.clientY);
+      if (p) {
+        lastPoint.current = p;
+        onMove(p);
+      }
+    },
+    [toPoint, onMove]
+  );
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!dragging.current) return;
+      const p = toPoint(e.clientX, e.clientY);
+      if (p) {
+        lastPoint.current = p;
+        onMove?.(p);
+      }
+    },
+    [toPoint, onMove]
+  );
+
+  const onPointerUp = useCallback(() => {
+    if (dragging.current && lastPoint.current) {
+      onDragEnd?.(lastPoint.current);
+    }
+    dragging.current = false;
+  }, [onDragEnd]);
+
+  return { onPointerDown, onPointerMove, onPointerUp };
+}
 
 export default function ProjectionCanvas({
   videoUrl,
@@ -23,9 +85,26 @@ export default function ProjectionCanvas({
   slide,
   style,
   blackout,
+  editable = false,
+  onMoveVerse,
+  onMoveReference,
+  onVerseDragEnd,
+  onReferenceDragEnd,
 }: ProjectionCanvasProps) {
-  const versePosition = style.versePosition ?? "center";
-  const referencePosition = style.referencePosition ?? "bottom";
+  const containerRef = useRef<HTMLDivElement>(null);
+  const verseDrag = useDrag(
+    containerRef,
+    editable ? onMoveVerse : undefined,
+    editable ? onVerseDragEnd : undefined
+  );
+  const refDrag = useDrag(
+    containerRef,
+    editable ? onMoveReference : undefined,
+    editable ? onReferenceDragEnd : undefined
+  );
+
+  const versePos = style.versePos ?? { x: 50, y: 50 };
+  const referencePos = style.referencePos ?? { x: 50, y: 88 };
 
   const bandBackground = style.bandImage
     ? {
@@ -37,7 +116,8 @@ export default function ProjectionCanvas({
 
   return (
     <div
-      className="relative h-full w-full overflow-hidden"
+      ref={containerRef}
+      className="relative h-full w-full overflow-hidden [container-type:inline-size]"
       style={{ background: style.transparentBg ? "transparent" : "#000" }}
     >
       {!blackout && !style.transparentBg && videoUrl && (
@@ -62,13 +142,17 @@ export default function ProjectionCanvas({
       )}
       {!blackout && slide && (
         <div
-          className={`absolute inset-0 flex flex-col justify-center px-[6%] text-center ${positionClasses[versePosition]}`}
+          {...(editable ? verseDrag : {})}
+          className={`absolute max-w-[88%] -translate-x-1/2 -translate-y-1/2 text-center ${
+            editable ? "cursor-move touch-none" : ""
+          } ${editable ? "rounded-lg outline-dashed outline-1 outline-white/25 hover:outline-accent" : ""}`}
+          style={{ left: `${versePos.x}%`, top: `${versePos.y}%` }}
         >
           <div
             className={
               style.bandEnabled
                 ? style.bandWidth === "full"
-                  ? "w-full py-[3%]"
+                  ? "w-full rounded-xl px-[4%] py-[3%]"
                   : "inline-block rounded-xl px-[4%] py-[2%]"
                 : ""
             }
@@ -81,7 +165,7 @@ export default function ProjectionCanvas({
                 style.showShadow ? "text-shadow-strong" : "",
                 "leading-tight transition-opacity duration-300",
               ].join(" ")}
-              style={{ fontSize: `${style.fontSize}vw`, color: style.textColor }}
+              style={{ fontSize: `${style.fontSize}cqw`, color: style.textColor }}
             >
               {slide.text}
             </p>
@@ -90,14 +174,18 @@ export default function ProjectionCanvas({
       )}
       {!blackout && slide && style.showReference && (
         <div
-          className={`absolute inset-0 flex flex-col justify-center px-[6%] text-center ${positionClasses[referencePosition]}`}
+          {...(editable ? refDrag : {})}
+          className={`absolute max-w-[88%] -translate-x-1/2 -translate-y-1/2 text-center ${
+            editable ? "cursor-move touch-none rounded-lg outline-dashed outline-1 outline-white/25 hover:outline-accent" : ""
+          }`}
+          style={{ left: `${referencePos.x}%`, top: `${referencePos.y}%` }}
         >
           <p
             className={[
               style.showShadow ? "text-shadow-strong" : "",
               "font-sans uppercase tracking-widest text-accent2",
             ].join(" ")}
-            style={{ fontSize: `${Math.max(style.fontSize * 0.32, 1)}vw` }}
+            style={{ fontSize: `${Math.max(style.fontSize * 0.32, 1)}cqw` }}
           >
             {slide.reference}
             {slide.version ? ` · ${slide.version}` : ""}

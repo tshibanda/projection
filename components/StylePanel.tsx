@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { ShowStyle, SlidePosition } from "@/lib/types";
+import { defaultStyle, ShowStyle } from "@/lib/types";
 
 interface StylePanelProps {
   style: ShowStyle;
@@ -9,37 +9,6 @@ interface StylePanelProps {
 }
 
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
-
-function PositionPicker({
-  label,
-  value,
-  onSelect,
-}: {
-  label: string;
-  value: SlidePosition;
-  onSelect: (p: SlidePosition) => void;
-}) {
-  return (
-    <div>
-      <label className="mb-1 block text-white/60">{label}</label>
-      <div className="flex gap-2">
-        {(["top", "center", "bottom"] as const).map((p) => (
-          <button
-            key={p}
-            onClick={() => onSelect(p)}
-            className={`flex-1 rounded-lg border px-3 py-2 ${
-              value === p
-                ? "border-accent bg-accent/20 text-white"
-                : "border-white/10 text-white/60 hover:bg-white/5"
-            }`}
-          >
-            {p === "top" ? "Haut" : p === "center" ? "Centre" : "Bas"}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default function StylePanel({ style, onChange }: StylePanelProps) {
   const bandImageInputRef = useRef<HTMLInputElement>(null);
@@ -104,16 +73,17 @@ export default function StylePanel({ style, onChange }: StylePanelProps) {
           />
         </div>
 
-        <PositionPicker
-          label="Position du verset"
-          value={style.versePosition ?? "center"}
-          onSelect={(p) => onChange({ versePosition: p })}
-        />
-        <PositionPicker
-          label="Position de la référence"
-          value={style.referencePosition ?? "bottom"}
-          onSelect={(p) => onChange({ referencePosition: p })}
-        />
+        <div className="flex items-center justify-between rounded-lg border border-white/10 bg-ink px-3 py-2 text-xs text-white/50">
+          <span>Glissez le verset ou la référence dans l&apos;aperçu pour les repositionner.</span>
+          <button
+            onClick={() =>
+              onChange({ versePos: defaultStyle.versePos, referencePos: defaultStyle.referencePos })
+            }
+            className="ml-2 shrink-0 whitespace-nowrap text-accent2 hover:underline"
+          >
+            Réinitialiser
+          </button>
+        </div>
 
         <label className="flex items-center justify-between">
           <span className="text-white/60">Fond transparent</span>
