@@ -1,6 +1,6 @@
 "use client";
 
-import { Show, ShowStyle, Slide, defaultStyle } from "./types";
+import { BackgroundSource, Show, ShowStyle, Slide, defaultStyle } from "./types";
 
 const INDEX_KEY = "verseflow:shows:index";
 const showKey = (id: string) => `verseflow:show:${id}`;
@@ -19,6 +19,40 @@ function writeIndex(ids: string[]) {
   localStorage.setItem(INDEX_KEY, JSON.stringify(ids));
 }
 
+// Fills in defaults for fields added by later versions of the app, and
+// migrates the pre-image-support "video" field to "background", so shows
+// saved by an older build keep working instead of crashing on load.
+function normalizeShow(raw: any): Show {
+  let background: BackgroundSource = raw.background;
+  if (!background) {
+    const video = raw.video;
+    if (video?.type === "file") background = { type: "videoFile", name: video.name };
+    else if (video?.type === "url") background = { type: "videoUrl", url: video.url };
+    else background = { type: "none" };
+  }
+
+  const slides: Slide[] = Array.isArray(raw.slides)
+    ? raw.slides.map((s: any) => ({
+        id: s.id ?? crypto.randomUUID(),
+        reference: s.reference ?? "",
+        text: s.text ?? "",
+        version: s.version ?? "",
+      }))
+    : [];
+
+  const style: ShowStyle = { ...defaultStyle, ...(raw.style ?? {}) };
+
+  return {
+    id: raw.id,
+    title: raw.title ?? "Présentation",
+    createdAt: raw.createdAt ?? Date.now(),
+    updatedAt: raw.updatedAt ?? Date.now(),
+    slides,
+    style,
+    background,
+  };
+}
+
 export function listShows(): Show[] {
   return readIndex()
     .map((id) => getShow(id))
@@ -30,7 +64,7 @@ export function getShow(id: string): Show | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(showKey(id));
-    return raw ? (JSON.parse(raw) as Show) : null;
+    return raw ? normalizeShow(JSON.parse(raw)) : null;
   } catch {
     return null;
   }

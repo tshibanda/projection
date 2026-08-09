@@ -25,7 +25,15 @@ export default function StudioShowPage() {
   const [dragStyle, setDragStyle] = useState<Partial<Show["style"]> | null>(null);
 
   useEffect(() => {
-    setShow(getShow(showId) ?? null);
+    const loaded = getShow(showId);
+    if (loaded && loaded.background.type !== "none" && loaded.style.transparentBg) {
+      // A background was chosen while "Fond transparent" was left on from
+      // an earlier default — that combination hides the background
+      // entirely, which is never what picking one meant. Fix it once.
+      loaded.style.transparentBg = false;
+      saveShow(loaded);
+    }
+    setShow(loaded ?? null);
   }, [showId]);
 
   const persist = useCallback((next: Show) => {
@@ -164,24 +172,30 @@ export default function StudioShowPage() {
 
   const setBackground = (background: BackgroundSource) => persist({ ...show, background });
 
+  // Picking an actual background contradicts "Fond transparent" (which
+  // hides any background on purpose, for OBS overlays) — turn it off so
+  // the media the user just chose is immediately visible.
+  const setBackgroundMedia = (background: BackgroundSource) =>
+    persist({ ...show, background, style: { ...show.style, transparentBg: false } });
+
   const handleVideoFile = async (file: File) => {
     await storeMediaBlob(show.id, file);
-    setBackground({ type: "videoFile", name: file.name });
+    setBackgroundMedia({ type: "videoFile", name: file.name });
   };
 
   const handleVideoUrl = async (url: string) => {
     await removeMediaBlob(show.id);
-    setBackground({ type: "videoUrl", url });
+    setBackgroundMedia({ type: "videoUrl", url });
   };
 
   const handleImageFile = async (file: File) => {
     await storeMediaBlob(show.id, file);
-    setBackground({ type: "imageFile", name: file.name });
+    setBackgroundMedia({ type: "imageFile", name: file.name });
   };
 
   const handleImageUrl = async (url: string) => {
     await removeMediaBlob(show.id);
-    setBackground({ type: "imageUrl", url });
+    setBackgroundMedia({ type: "imageUrl", url });
   };
 
   const handleClearBackground = async () => {

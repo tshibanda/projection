@@ -95,7 +95,7 @@ export default function StylePanel({ style, onChange }: StylePanelProps) {
                 <span className="truncate">{p.name}</span>
                 <span className="flex shrink-0 gap-3">
                   <button
-                    onClick={() => onChange(p.style)}
+                    onClick={() => onChange({ ...defaultStyle, ...p.style })}
                     className="text-accent2 hover:underline"
                   >
                     Appliquer
