@@ -2,11 +2,14 @@
   "name": "verseflow",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "electron:dev": "electron .",
+    "dist:mac": "next build && electron-builder --mac --arm64"
   },
   "dependencies": {
     "idb-keyval": "^6.2.1",
@@ -19,8 +22,49 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.19",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
     "postcss": "^8.4.39",
     "tailwindcss": "^3.4.6",
     "typescript": "^5.5.3"
+  },
+  "build": {
+    "appId": "com.verseflow.desktop",
+    "productName": "VerseFlow",
+    "asar": false,
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json",
+      "!node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": ".",
+        "to": "app",
+        "filter": [
+          "package.json",
+          "next.config.mjs",
+          ".next/**/*"
+        ]
+      },
+      {
+        "from": "/tmp/verseflow-deploy/node_modules",
+        "to": "app/node_modules"
+      }
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.utilities"
+    }
   }
 }
