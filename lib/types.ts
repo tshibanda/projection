@@ -57,7 +57,7 @@ export const defaultStyle: ShowStyle = {
   overlayOpacity: 45,
   showReference: true,
   fadeTransition: true,
-  transparentBg: false,
+  transparentBg: true,
   bandEnabled: false,
   bandColor: "#000000",
   bandOpacity: 55,

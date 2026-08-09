@@ -3,6 +3,7 @@ const path = require("path");
 const http = require("http");
 
 const PORT = 4173;
+const LIVE_ASPECT_RATIO = 16 / 9;
 let mainWindow;
 let server;
 const liveWindows = new Map();
@@ -27,6 +28,10 @@ async function startServer() {
   });
 }
 
+function isLiveFrame(frameName) {
+  return Boolean(frameName) && frameName.startsWith("verseflow-live-");
+}
+
 function attachLiveWindowHandling(contents) {
   contents.setWindowOpenHandler(({ url, frameName }) => {
     if (!url.startsWith(`http://127.0.0.1:${PORT}`)) {
@@ -38,6 +43,25 @@ function attachLiveWindowHandling(contents) {
       existing.focus();
       return { action: "deny" };
     }
+    if (isLiveFrame(frameName)) {
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: {
+          width: 1280,
+          height: 720,
+          frame: false,
+          transparent: true,
+          backgroundColor: "#00000000",
+          hasShadow: false,
+          alwaysOnTop: false,
+          fullscreenable: true,
+          webPreferences: {
+            contextIsolation: true,
+            nodeIntegration: false,
+          },
+        },
+      };
+    }
     return { action: "allow" };
   });
 
@@ -45,6 +69,21 @@ function attachLiveWindowHandling(contents) {
     if (details.frameName) {
       liveWindows.set(details.frameName, childWindow);
       childWindow.on("closed", () => liveWindows.delete(details.frameName));
+    }
+    if (isLiveFrame(details.frameName)) {
+      childWindow.setAspectRatio(LIVE_ASPECT_RATIO);
+      // Frameless windows have no menu/title bar, so the OS close shortcut
+      // still needs to be wired up manually.
+      childWindow.webContents.on("before-input-event", (event, input) => {
+        const closeCombo =
+          input.type === "keyDown" &&
+          input.key.toLowerCase() === "w" &&
+          (input.meta || input.control);
+        if (closeCombo) {
+          event.preventDefault();
+          childWindow.close();
+        }
+      });
     }
   });
 }
