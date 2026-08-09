@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Point, Slide, ShowStyle, VideoSource } from "@/lib/types";
 import { hexToRgba } from "@/lib/color";
 
@@ -106,6 +106,24 @@ export default function ProjectionCanvas({
   const versePos = style.versePos ?? { x: 50, y: 50 };
   const referencePos = style.referencePos ?? { x: 50, y: 88 };
 
+  useEffect(() => {
+    if (style.fontFamily !== "custom" || !style.customFontName || !style.customFontData) return;
+    if (typeof document === "undefined" || !("fonts" in document)) return;
+    const family = style.customFontName;
+    const already = Array.from(document.fonts).some((f) => f.family === family);
+    if (already) return;
+    const face = new FontFace(family, `url(${style.customFontData})`);
+    face
+      .load()
+      .then((loaded) => document.fonts.add(loaded))
+      .catch(() => {
+        // Ignore malformed font files; the browser falls back to a default font.
+      });
+  }, [style.fontFamily, style.customFontName, style.customFontData]);
+
+  const verseFontFamily =
+    style.fontFamily === "custom" && style.customFontName ? `"${style.customFontName}"` : undefined;
+
   const bandBackground = style.bandImage
     ? {
         backgroundImage: `linear-gradient(${hexToRgba(style.bandColor, style.bandOpacity / 100)}, ${hexToRgba(style.bandColor, style.bandOpacity / 100)}), url(${style.bandImage})`,
@@ -160,12 +178,20 @@ export default function ProjectionCanvas({
           >
             <p
               className={[
-                style.fontFamily === "serif" ? "font-serif italic" : "font-sans font-semibold",
+                style.fontFamily === "serif"
+                  ? "font-serif italic"
+                  : style.fontFamily === "sans"
+                    ? "font-sans font-semibold"
+                    : "",
                 style.showOutline ? "text-outline" : "",
                 style.showShadow ? "text-shadow-strong" : "",
                 "leading-tight transition-opacity duration-300",
               ].join(" ")}
-              style={{ fontSize: `${style.fontSize}cqw`, color: style.textColor }}
+              style={{
+                fontSize: `${style.fontSize}cqw`,
+                color: style.textColor,
+                fontFamily: verseFontFamily,
+              }}
             >
               {slide.text}
             </p>
@@ -183,12 +209,15 @@ export default function ProjectionCanvas({
           <p
             className={[
               style.showShadow ? "text-shadow-strong" : "",
-              "font-sans uppercase tracking-widest text-accent2",
+              "font-sans uppercase tracking-widest",
             ].join(" ")}
-            style={{ fontSize: `${Math.max(style.fontSize * 0.32, 1)}cqw` }}
+            style={{
+              fontSize: `${Math.max(style.fontSize * 0.32, 1)}cqw`,
+              color: style.referenceColor ?? "#22d3ee",
+            }}
           >
             {slide.reference}
-            {slide.version ? ` · ${slide.version}` : ""}
+            {slide.version ? ` (${slide.version})` : ""}
           </p>
         </div>
       )}

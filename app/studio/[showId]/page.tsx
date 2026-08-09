@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
-import { Point, Show, VideoSource } from "@/lib/types";
+import { Point, Show, Slide, VideoSource } from "@/lib/types";
 import { getShow, newSlide, saveShow } from "@/lib/store";
 import { loadVideoBlob, removeVideoBlob, storeVideoBlob } from "@/lib/videoDb";
 import { pushLiveState } from "@/lib/liveSync";
@@ -133,6 +133,14 @@ export default function StudioShowPage() {
     persist(next);
   };
 
+  const editSlide = (id: string, patch: Partial<Pick<Slide, "reference" | "text" | "version">>) => {
+    const next = {
+      ...show,
+      slides: show.slides.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    };
+    persist(next);
+  };
+
   const removeSlide = (id: string) => {
     const idx = show.slides.findIndex((s) => s.id === id);
     const next = { ...show, slides: show.slides.filter((s) => s.id !== id) };
@@ -211,6 +219,7 @@ export default function StudioShowPage() {
               onSelect={goTo}
               onRemove={removeSlide}
               onMove={moveSlide}
+              onEdit={editSlide}
             />
           </section>
 

@@ -15,9 +15,12 @@ export interface Slide {
 export type BandWidth = "full" | "fit";
 
 export interface ShowStyle {
-  fontFamily: "sans" | "serif";
+  fontFamily: "sans" | "serif" | "custom";
+  customFontName: string | null; // font-family name registered via FontFace, when fontFamily === "custom"
+  customFontData: string | null; // data URL of the imported font file
   fontSize: number; // in vw units
   textColor: string;
+  referenceColor: string;
   showOutline: boolean;
   showShadow: boolean;
   versePos: Point;
@@ -57,8 +60,11 @@ export interface ServerLiveState {
 
 export const defaultStyle: ShowStyle = {
   fontFamily: "serif",
+  customFontName: null,
+  customFontData: null,
   fontSize: 4.2,
   textColor: "#ffffff",
+  referenceColor: "#22d3ee",
   showOutline: true,
   showShadow: true,
   versePos: { x: 50, y: 50 },

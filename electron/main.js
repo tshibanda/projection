@@ -1,9 +1,12 @@
-const { app, BrowserWindow, Menu, shell } = require("electron");
+const { app, BrowserWindow, Menu, shell, screen } = require("electron");
 const path = require("path");
 const http = require("http");
 
 const PORT = 4173;
 const LIVE_ASPECT_RATIO = 16 / 9;
+const LIVE_WIDTH = 480;
+const LIVE_HEIGHT = Math.round(LIVE_WIDTH / LIVE_ASPECT_RATIO);
+const LIVE_MARGIN = 24;
 let mainWindow;
 let server;
 const liveWindows = new Map();
@@ -44,12 +47,15 @@ function attachLiveWindowHandling(contents) {
       return { action: "deny" };
     }
     if (isLiveFrame(frameName)) {
+      const { workArea } = screen.getPrimaryDisplay();
       return {
         action: "allow",
         overrideBrowserWindowOptions: {
           title: "VerseFlow LIVE",
-          width: 1280,
-          height: 720,
+          width: LIVE_WIDTH,
+          height: LIVE_HEIGHT,
+          x: workArea.x + workArea.width - LIVE_WIDTH - LIVE_MARGIN,
+          y: workArea.y + workArea.height - LIVE_HEIGHT - LIVE_MARGIN,
           frame: false,
           transparent: true,
           backgroundColor: "#00000000",

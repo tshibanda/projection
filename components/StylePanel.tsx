@@ -9,9 +9,11 @@ interface StylePanelProps {
 }
 
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+const MAX_FONT_BYTES = 6 * 1024 * 1024;
 
 export default function StylePanel({ style, onChange }: StylePanelProps) {
   const bandImageInputRef = useRef<HTMLInputElement>(null);
+  const fontInputRef = useRef<HTMLInputElement>(null);
 
   const handleBandImage = (file: File) => {
     if (file.size > MAX_IMAGE_BYTES) {
@@ -20,6 +22,22 @@ export default function StylePanel({ style, onChange }: StylePanelProps) {
     }
     const reader = new FileReader();
     reader.onload = () => onChange({ bandImage: reader.result as string });
+    reader.readAsDataURL(file);
+  };
+
+  const handleFontImport = (file: File) => {
+    if (file.size > MAX_FONT_BYTES) {
+      alert("Police trop lourde (max 6 Mo). Choisissez un fichier plus léger.");
+      return;
+    }
+    const name = file.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, " ").trim() || "Police importée";
+    const reader = new FileReader();
+    reader.onload = () =>
+      onChange({
+        fontFamily: "custom",
+        customFontName: name,
+        customFontData: reader.result as string,
+      });
     reader.readAsDataURL(file);
   };
 
@@ -44,13 +62,43 @@ export default function StylePanel({ style, onChange }: StylePanelProps) {
                 {f === "serif" ? "Classique" : "Moderne"}
               </button>
             ))}
+            {style.customFontName && (
+              <button
+                onClick={() => onChange({ fontFamily: "custom" })}
+                className={`flex-1 truncate rounded-lg border px-3 py-2 ${
+                  style.fontFamily === "custom"
+                    ? "border-accent bg-accent/20 text-white"
+                    : "border-white/10 text-white/60 hover:bg-white/5"
+                }`}
+                title={style.customFontName}
+              >
+                {style.customFontName}
+              </button>
+            )}
           </div>
+          <input
+            ref={fontInputRef}
+            type="file"
+            accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFontImport(file);
+              e.target.value = "";
+            }}
+          />
+          <button
+            onClick={() => fontInputRef.current?.click()}
+            className="mt-2 w-full rounded-lg border border-dashed border-white/15 px-3 py-2 text-xs text-white/60 hover:bg-white/5"
+          >
+            Importer une police (.ttf, .otf, .woff, .woff2)…
+          </button>
         </div>
 
         <div>
           <label className="mb-1 flex justify-between text-white/60">
             <span>Taille du texte</span>
-            <span>{style.fontSize.toFixed(1)}vw</span>
+            <span>{style.fontSize.toFixed(1)}</span>
           </label>
           <input
             type="range"
@@ -64,11 +112,21 @@ export default function StylePanel({ style, onChange }: StylePanelProps) {
         </div>
 
         <div>
-          <label className="mb-1 block text-white/60">Couleur du texte</label>
+          <label className="mb-1 block text-white/60">Couleur du verset</label>
           <input
             type="color"
             value={style.textColor}
             onChange={(e) => onChange({ textColor: e.target.value })}
+            className="h-9 w-full cursor-pointer rounded-lg border border-white/10 bg-ink"
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-white/60">Couleur de la référence</label>
+          <input
+            type="color"
+            value={style.referenceColor ?? "#22d3ee"}
+            onChange={(e) => onChange({ referenceColor: e.target.value })}
             className="h-9 w-full cursor-pointer rounded-lg border border-white/10 bg-ink"
           />
         </div>
