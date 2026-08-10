@@ -4,8 +4,13 @@ const http = require("http");
 
 const PORT = 4173;
 const LIVE_ASPECT_RATIO = 16 / 9;
-const LIVE_WIDTH = 480;
-const LIVE_HEIGHT = Math.round(LIVE_WIDTH / LIVE_ASPECT_RATIO);
+// Sized relative to the screen's work area (like vw/vh) instead of a fixed
+// pixel width, so the preview stays proportionate across resolutions.
+// Clamped so it stays legible on small screens and doesn't get oversized
+// on very large ones (mirrors a CSS clamp()).
+const LIVE_WIDTH_RATIO = 0.15;
+const LIVE_MIN_WIDTH = 220;
+const LIVE_MAX_WIDTH = 380;
 const LIVE_MARGIN = 24;
 const PRELOAD_PATH = path.join(__dirname, "preload.js");
 let mainWindow;
@@ -60,14 +65,18 @@ function attachLiveWindowHandling(contents) {
     }
     if (isLiveFrame(frameName)) {
       const { workArea } = screen.getPrimaryDisplay();
+      const liveWidth = Math.round(
+        Math.min(LIVE_MAX_WIDTH, Math.max(LIVE_MIN_WIDTH, workArea.width * LIVE_WIDTH_RATIO))
+      );
+      const liveHeight = Math.round(liveWidth / LIVE_ASPECT_RATIO);
       return {
         action: "allow",
         overrideBrowserWindowOptions: {
           title: "VerseFlow LIVE",
-          width: LIVE_WIDTH,
-          height: LIVE_HEIGHT,
+          width: liveWidth,
+          height: liveHeight,
           x: workArea.x + LIVE_MARGIN,
-          y: workArea.y + workArea.height - LIVE_HEIGHT - LIVE_MARGIN,
+          y: workArea.y + workArea.height - liveHeight - LIVE_MARGIN,
           frame: false,
           transparent: true,
           backgroundColor: "#00000000",
