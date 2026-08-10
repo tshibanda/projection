@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "next lint",
     "electron:dev": "electron .",
+    "predist:mac": "rm -rf .deploy-mac && mkdir -p .deploy-mac && cp package.json package-lock.json .deploy-mac/ && cd .deploy-mac && npm install --omit=dev --no-audit --no-fund",
     "dist:mac": "next build && electron-builder --mac --arm64",
+    "predist:win": "rm -rf .deploy-win && mkdir -p .deploy-win && cp package.json package-lock.json .deploy-win/ && cd .deploy-win && npm install --omit=dev --no-audit --no-fund",
     "dist:win": "next build && electron-builder --win --x64"
   },
   "dependencies": {
@@ -64,7 +66,7 @@
       "category": "public.app-category.utilities",
       "extraResources": [
         {
-          "from": "/tmp/verseflow-deploy/node_modules",
+          "from": ".deploy-mac/node_modules",
           "to": "app/node_modules"
         }
       ]
@@ -81,7 +83,7 @@
       "signAndEditExecutable": false,
       "extraResources": [
         {
-          "from": "/tmp/verseflow-deploy-win/node_modules",
+          "from": ".deploy-win/node_modules",
           "to": "app/node_modules"
         }
       ]

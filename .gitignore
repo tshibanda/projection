@@ -6,3 +6,5 @@ out
 npm-debug.log*
 next-env.d.ts
 dist-electron
+.deploy-mac
+.deploy-win
