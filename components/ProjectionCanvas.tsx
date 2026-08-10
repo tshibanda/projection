@@ -6,7 +6,7 @@ import { hexToRgba } from "@/lib/color";
 
 export interface BoxSize {
   width: number;
-  paddingY: number;
+  height: number;
 }
 
 interface ProjectionCanvasProps {
@@ -106,12 +106,18 @@ function useDrag(
   return { onPointerDown, onPointerMove, onPointerUp };
 }
 
-// A corner handle that resizes a text box's width (left/right) and
-// vertical padding (top/bottom), symmetrically from its centered anchor.
-// Deliberately separate from useDrag so that moving a box (anywhere on
-// it) never resizes it, and resizing (only from the handle) never moves it.
-function useResizeHandle(
+type ResizeAxis = "width" | "height";
+
+// One edge handle resizes a single axis (width from the left/right edges,
+// height from the top/bottom edges), symmetrically from the box's centered
+// anchor, so the box's on-screen footprint is entirely user-controlled and
+// never shifts based on how much text it holds. Deliberately separate from
+// useDrag so that moving a box (anywhere on it) never resizes it, and
+// resizing (only from a handle) never moves it.
+function useEdgeResize(
   containerRef: React.RefObject<HTMLDivElement>,
+  axis: ResizeAxis,
+  invert: boolean,
   getStart: () => BoxSize,
   onResize?: (s: BoxSize) => void,
   onResizeEnd?: (s: BoxSize) => void
@@ -135,15 +141,17 @@ function useResizeHandle(
       if (!start.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const dxPct = ((e.clientX - start.current.x) / rect.width) * 100;
-      const dyPct = ((e.clientY - start.current.y) / rect.width) * 100;
-      const next: BoxSize = {
-        width: clamp(start.current.size.width + dxPct * 2, 20, 100),
-        paddingY: clamp(start.current.size.paddingY + dyPct, 0, 10),
-      };
+      const dyPct = ((e.clientY - start.current.y) / rect.height) * 100;
+      const raw = axis === "width" ? dxPct : dyPct;
+      const delta = (invert ? -raw : raw) * 2;
+      const next: BoxSize =
+        axis === "width"
+          ? { ...start.current.size, width: clamp(start.current.size.width + delta, 15, 100) }
+          : { ...start.current.size, height: clamp(start.current.size.height + delta, 5, 95) };
       last.current = next;
       onResize?.(next);
     },
-    [containerRef]
+    [containerRef, axis, invert]
   );
 
   const onPointerUp = useCallback(
@@ -161,20 +169,51 @@ function useResizeHandle(
   return { onPointerDown, onPointerMove, onPointerUp };
 }
 
-function ResizeHandle({
+const EDGE_HANDLE_POSITION: Record<"top" | "bottom" | "left" | "right", string> = {
+  top: "-top-1.5 left-1/2 -translate-x-1/2 cursor-ns-resize",
+  bottom: "-bottom-1.5 left-1/2 -translate-x-1/2 cursor-ns-resize",
+  left: "-left-1.5 top-1/2 -translate-y-1/2 cursor-ew-resize",
+  right: "-right-1.5 top-1/2 -translate-y-1/2 cursor-ew-resize",
+};
+
+function EdgeHandle({
+  position,
   handlers,
 }: {
-  handlers: ReturnType<typeof useResizeHandle>;
+  position: "top" | "bottom" | "left" | "right";
+  handlers: ReturnType<typeof useEdgeResize>;
 }) {
   return (
     <div
       {...handlers}
       title="Redimensionner"
-      className="absolute -bottom-2 -right-2 flex h-4 w-4 cursor-nwse-resize touch-none items-center justify-center rounded-full border border-white/40 bg-accent text-[8px] text-white shadow"
-      onClick={(e) => e.stopPropagation()}
-    >
-      ⤡
-    </div>
+      className={`absolute h-3 w-3 touch-none rounded-full border border-white/40 bg-accent shadow ${EDGE_HANDLE_POSITION[position]}`}
+    />
+  );
+}
+
+function ResizeHandles({
+  containerRef,
+  getStart,
+  onResize,
+  onResizeEnd,
+}: {
+  containerRef: React.RefObject<HTMLDivElement>;
+  getStart: () => BoxSize;
+  onResize?: (s: BoxSize) => void;
+  onResizeEnd?: (s: BoxSize) => void;
+}) {
+  const top = useEdgeResize(containerRef, "height", true, getStart, onResize, onResizeEnd);
+  const bottom = useEdgeResize(containerRef, "height", false, getStart, onResize, onResizeEnd);
+  const left = useEdgeResize(containerRef, "width", true, getStart, onResize, onResizeEnd);
+  const right = useEdgeResize(containerRef, "width", false, getStart, onResize, onResizeEnd);
+  return (
+    <>
+      <EdgeHandle position="top" handlers={top} />
+      <EdgeHandle position="bottom" handlers={bottom} />
+      <EdgeHandle position="left" handlers={left} />
+      <EdgeHandle position="right" handlers={right} />
+    </>
   );
 }
 
@@ -219,23 +258,17 @@ export default function ProjectionCanvas({
   const imageScale = style.imageScale ?? 100;
   const verseBoxWidth = style.verseBoxWidth ?? 88;
   const referenceBoxWidth = style.referenceBoxWidth ?? 88;
-  const versePaddingY = style.versePaddingY ?? 0;
-  const referencePaddingY = style.referencePaddingY ?? 0;
+  const verseBoxHeight = style.verseBoxHeight ?? 40;
+  const referenceBoxHeight = style.referenceBoxHeight ?? 12;
+  const referenceFontSize = style.referenceFontSize ?? Math.max(style.fontSize * 0.32, 1);
 
-  const verseResize = useResizeHandle(
-    containerRef,
-    useCallback(() => ({ width: verseBoxWidth, paddingY: versePaddingY }), [verseBoxWidth, versePaddingY]),
-    editable ? onResizeVerse : undefined,
-    editable ? onVerseResizeEnd : undefined
+  const getVerseSize = useCallback(
+    () => ({ width: verseBoxWidth, height: verseBoxHeight }),
+    [verseBoxWidth, verseBoxHeight]
   );
-  const refResize = useResizeHandle(
-    containerRef,
-    useCallback(
-      () => ({ width: referenceBoxWidth, paddingY: referencePaddingY }),
-      [referenceBoxWidth, referencePaddingY]
-    ),
-    editable ? onResizeReference : undefined,
-    editable ? onReferenceResizeEnd : undefined
+  const getReferenceSize = useCallback(
+    () => ({ width: referenceBoxWidth, height: referenceBoxHeight }),
+    [referenceBoxWidth, referenceBoxHeight]
   );
 
   const isImageBg = background.type === "imageFile" || background.type === "imageUrl";
@@ -305,7 +338,10 @@ export default function ProjectionCanvas({
       {!blackout && rootIsOpaqueFallback && (
         <div className="absolute inset-0 bg-gradient-to-br from-[#141a2c] via-[#0b0f1a] to-[#191227]" />
       )}
-      {!blackout && !style.transparentBg && (
+      {/* The dark veil is a flat layer, so it would mask a PNG's own alpha
+          wherever it's laid over the image — it's scoped to video only, the
+          one background type that's always fully opaque anyway. */}
+      {!blackout && !style.transparentBg && isVideoBg && (
         <div
           className="absolute inset-0 bg-black"
           style={{ opacity: style.overlayOpacity / 100 }}
@@ -315,75 +351,104 @@ export default function ProjectionCanvas({
         <div
           {...(editable ? verseDrag : {})}
           className={`absolute -translate-x-1/2 -translate-y-1/2 ${
-            style.verseTextAlign === "right"
-              ? "text-right"
-              : style.verseTextAlign === "center"
-                ? "text-center"
-                : "text-left"
-          } ${editable ? "cursor-move touch-none" : ""} ${
-            editable ? "rounded-lg outline-dashed outline-1 outline-white/25 hover:outline-accent" : ""
-          }`}
-          style={{ left: `${versePos.x}%`, top: `${versePos.y}%`, maxWidth: `${verseBoxWidth}%` }}
+            editable ? "cursor-move touch-none" : ""
+          } ${editable ? "rounded-lg outline-dashed outline-1 outline-white/25 hover:outline-accent" : ""}`}
+          style={{
+            left: `${versePos.x}%`,
+            top: `${versePos.y}%`,
+            width: `${verseBoxWidth}%`,
+            height: `${verseBoxHeight}%`,
+          }}
         >
+          {/* Clipping lives on this inner wrapper, not the box itself, so the
+              resize handles (anchored on the box's own border) stay fully
+              interactive instead of being clipped along with overflow text. */}
           <div
-            className={
-              style.bandEnabled
-                ? style.bandWidth === "full"
-                  ? "w-full rounded-xl px-[4%] py-[3%]"
-                  : "inline-block rounded-xl px-[4%] py-[2%]"
-                : ""
-            }
-            style={style.bandEnabled ? bandBackground : undefined}
+            className={`flex h-full w-full flex-col justify-center overflow-hidden ${
+              style.verseTextAlign === "right"
+                ? "items-end text-right"
+                : style.verseTextAlign === "center"
+                  ? "items-center text-center"
+                  : "items-start text-left"
+            }`}
           >
-            <p
-              className={[
-                style.fontFamily === "serif"
-                  ? "font-serif italic"
-                  : style.fontFamily === "sans"
-                    ? "font-sans font-semibold"
-                    : "",
-                style.showOutline ? "text-outline" : "",
-                style.showShadow ? "text-shadow-strong" : "",
-                "leading-tight transition-opacity duration-300",
-              ].join(" ")}
-              style={{
-                fontSize: `${style.fontSize}cqw`,
-                color: style.textColor,
-                fontFamily: verseFontFamily,
-                paddingTop: `${versePaddingY}cqw`,
-                paddingBottom: `${versePaddingY}cqw`,
-              }}
+            <div
+              className={
+                style.bandEnabled
+                  ? style.bandWidth === "full"
+                    ? "w-full rounded-xl px-[4%] py-[3%]"
+                    : "inline-block rounded-xl px-[4%] py-[2%]"
+                  : ""
+              }
+              style={style.bandEnabled ? bandBackground : undefined}
             >
-              {slide.text}
-            </p>
+              <p
+                className={[
+                  style.fontFamily === "serif"
+                    ? "font-serif italic"
+                    : style.fontFamily === "sans"
+                      ? "font-sans font-semibold"
+                      : "",
+                  style.showOutline ? "text-outline" : "",
+                  style.showShadow ? "text-shadow-strong" : "",
+                  "leading-tight transition-opacity duration-300",
+                ].join(" ")}
+                style={{
+                  fontSize: `${style.fontSize}cqw`,
+                  color: style.textColor,
+                  fontFamily: verseFontFamily,
+                }}
+              >
+                {slide.text}
+              </p>
+            </div>
           </div>
-          {editable && <ResizeHandle handlers={verseResize} />}
+          {editable && (
+            <ResizeHandles
+              containerRef={containerRef}
+              getStart={getVerseSize}
+              onResize={onResizeVerse}
+              onResizeEnd={onVerseResizeEnd}
+            />
+          )}
         </div>
       )}
       {!blackout && slide && style.showReference && (
         <div
           {...(editable ? refDrag : {})}
-          className={`absolute -translate-x-1/2 -translate-y-1/2 text-center ${
+          className={`absolute -translate-x-1/2 -translate-y-1/2 ${
             editable ? "cursor-move touch-none rounded-lg outline-dashed outline-1 outline-white/25 hover:outline-accent" : ""
           }`}
-          style={{ left: `${referencePos.x}%`, top: `${referencePos.y}%`, maxWidth: `${referenceBoxWidth}%` }}
+          style={{
+            left: `${referencePos.x}%`,
+            top: `${referencePos.y}%`,
+            width: `${referenceBoxWidth}%`,
+            height: `${referenceBoxHeight}%`,
+          }}
         >
-          <p
-            className={[
-              style.showShadow ? "text-shadow-strong" : "",
-              "font-sans uppercase tracking-widest",
-            ].join(" ")}
-            style={{
-              fontSize: `${Math.max(style.fontSize * 0.32, 1)}cqw`,
-              color: style.referenceColor ?? "#22d3ee",
-              paddingTop: `${referencePaddingY}cqw`,
-              paddingBottom: `${referencePaddingY}cqw`,
-            }}
-          >
-            {slide.reference}
-            {slide.version ? ` (${slide.version})` : ""}
-          </p>
-          {editable && <ResizeHandle handlers={refResize} />}
+          <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden text-center">
+            <p
+              className={[
+                style.showShadow ? "text-shadow-strong" : "",
+                "font-sans uppercase tracking-widest",
+              ].join(" ")}
+              style={{
+                fontSize: `${referenceFontSize}cqw`,
+                color: style.referenceColor ?? "#22d3ee",
+              }}
+            >
+              {slide.reference}
+              {slide.version ? ` (${slide.version})` : ""}
+            </p>
+          </div>
+          {editable && (
+            <ResizeHandles
+              containerRef={containerRef}
+              getStart={getReferenceSize}
+              onResize={onResizeReference}
+              onResizeEnd={onReferenceResizeEnd}
+            />
+          )}
         </div>
       )}
     </div>

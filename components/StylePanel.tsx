@@ -8,12 +8,18 @@ interface StylePanelProps {
   style: ShowStyle;
   onChange: (patch: Partial<ShowStyle>) => void;
   showImageControls?: boolean;
+  isVideoBackground?: boolean;
 }
 
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 const MAX_FONT_BYTES = 6 * 1024 * 1024;
 
-export default function StylePanel({ style, onChange, showImageControls = false }: StylePanelProps) {
+export default function StylePanel({
+  style,
+  onChange,
+  showImageControls = false,
+  isVideoBackground = false,
+}: StylePanelProps) {
   const bandImageInputRef = useRef<HTMLInputElement>(null);
   const fontInputRef = useRef<HTMLInputElement>(null);
   const [presets, setPresets] = useState<StylePreset[]>([]);
@@ -202,6 +208,22 @@ export default function StylePanel({ style, onChange, showImageControls = false 
           />
         </div>
 
+        <div>
+          <label className="mb-1 flex justify-between text-white/60">
+            <span>Taille de la référence</span>
+            <span>{(style.referenceFontSize ?? defaultStyle.referenceFontSize).toFixed(1)}</span>
+          </label>
+          <input
+            type="range"
+            min={0.5}
+            max={4}
+            step={0.1}
+            value={style.referenceFontSize ?? defaultStyle.referenceFontSize}
+            onChange={(e) => onChange({ referenceFontSize: parseFloat(e.target.value) })}
+            className="w-full"
+          />
+        </div>
+
         <div className="flex items-center justify-between rounded-lg border border-white/10 bg-ink px-3 py-2 text-xs text-white/50">
           <span>Glissez le verset ou la référence dans l&apos;aperçu pour les repositionner.</span>
           <button
@@ -249,16 +271,15 @@ export default function StylePanel({ style, onChange, showImageControls = false 
         </div>
         <div>
           <label className="mb-1 flex justify-between text-white/60">
-            <span>Espace haut/bas — verset</span>
-            <span>{style.versePaddingY ?? 0}</span>
+            <span>Hauteur de la zone — verset</span>
+            <span>{style.verseBoxHeight ?? defaultStyle.verseBoxHeight}%</span>
           </label>
           <input
             type="range"
-            min={0}
-            max={10}
-            step={0.5}
-            value={style.versePaddingY ?? 0}
-            onChange={(e) => onChange({ versePaddingY: parseFloat(e.target.value) })}
+            min={5}
+            max={95}
+            value={style.verseBoxHeight ?? defaultStyle.verseBoxHeight}
+            onChange={(e) => onChange({ verseBoxHeight: parseInt(e.target.value, 10) })}
             className="w-full"
           />
         </div>
@@ -278,19 +299,23 @@ export default function StylePanel({ style, onChange, showImageControls = false 
         </div>
         <div>
           <label className="mb-1 flex justify-between text-white/60">
-            <span>Espace haut/bas — référence</span>
-            <span>{style.referencePaddingY ?? 0}</span>
+            <span>Hauteur de la zone — référence</span>
+            <span>{style.referenceBoxHeight ?? defaultStyle.referenceBoxHeight}%</span>
           </label>
           <input
             type="range"
-            min={0}
-            max={10}
-            step={0.5}
-            value={style.referencePaddingY ?? 0}
-            onChange={(e) => onChange({ referencePaddingY: parseFloat(e.target.value) })}
+            min={5}
+            max={95}
+            value={style.referenceBoxHeight ?? defaultStyle.referenceBoxHeight}
+            onChange={(e) => onChange({ referenceBoxHeight: parseInt(e.target.value, 10) })}
             className="w-full"
           />
         </div>
+
+        <p className="text-xs leading-relaxed text-white/35">
+          Le texte qui dépasse la zone allouée continue automatiquement sur une
+          nouvelle diapo dans le déroulé.
+        </p>
 
         <label className="flex items-center justify-between">
           <span className="text-white/60">Fond transparent</span>
@@ -301,12 +326,12 @@ export default function StylePanel({ style, onChange, showImageControls = false 
             className="h-4 w-4 accent-accent"
           />
         </label>
-        {style.transparentBg ? (
-          <p className="-mt-2 text-xs leading-relaxed text-white/40">
-            Aucune vidéo/fond n&apos;est affichée sur l&apos;écran Live — utile pour
-            incruster le texte par-dessus une autre source (OBS, régie vidéo...).
-          </p>
-        ) : (
+        <p className="-mt-2 text-xs leading-relaxed text-white/40">
+          Rend la page (et les zones transparentes d&apos;une image PNG) réellement
+          transparentes — utile pour incruster le texte par-dessus une autre
+          source (OBS, régie vidéo...).
+        </p>
+        {isVideoBackground && !style.transparentBg && (
           <div>
             <label className="mb-1 flex justify-between text-white/60">
               <span>Voile sombre sur la vidéo</span>

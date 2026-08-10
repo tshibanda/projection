@@ -1,11 +1,17 @@
 "use client";
 
 import { Show, ServerLiveState } from "./types";
+import { sendLiveStateToElectron } from "./electronBridge";
 
 export async function pushLiveState(
   showId: string,
   patch: { show?: Show; slideIndex?: number; blackout?: boolean }
 ): Promise<void> {
+  // In the desktop app, also relay over IPC — same-process and
+  // independent of this HTTP round trip, so the in-app live window isn't
+  // solely reliant on the network stack reaching itself. No-ops outside
+  // Electron (e.g. a plain browser tab, or OBS's Browser Source).
+  sendLiveStateToElectron(showId, patch);
   try {
     await fetch(`/api/shows/${showId}`, {
       method: "POST",

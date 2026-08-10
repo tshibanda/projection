@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
-import { BackgroundSource, Point, Show, Slide } from "@/lib/types";
+import { BackgroundSource, Point, Show, Slide, defaultStyle } from "@/lib/types";
 import { getShow, newSlide, saveShow } from "@/lib/store";
 import { loadMediaBlob, removeMediaBlob, storeMediaBlob } from "@/lib/mediaDb";
 import { pushLiveState } from "@/lib/liveSync";
+import { splitTextToFit } from "@/lib/textFit";
 import ProjectionCanvas from "@/components/ProjectionCanvas";
 import SlideList from "@/components/SlideList";
 import VerseSearch from "@/components/VerseSearch";
@@ -23,19 +24,13 @@ export default function StudioShowPage() {
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [savedTick, setSavedTick] = useState(0);
   const [dragStyle, setDragStyle] = useState<Partial<Show["style"]> | null>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const loaded = getShow(showId);
     if (loaded) {
-      const isVideo = loaded.background.type === "videoFile" || loaded.background.type === "videoUrl";
       const isImage = loaded.background.type === "imageFile" || loaded.background.type === "imageUrl";
-      if (isVideo && loaded.style.transparentBg) {
-        // A video was chosen while "Fond transparent" was left on from an
-        // earlier default — that combination hides the video entirely,
-        // which is never what picking one meant. Fix it once.
-        loaded.style.transparentBg = false;
-        saveShow(loaded);
-      } else if (isImage && !loaded.style.transparentBg) {
+      if (isImage && !loaded.style.transparentBg) {
         // An earlier build force-disabled this the moment an image was
         // picked, which also flipped the live page's background to solid
         // black and blocked genuine PNG transparency. Restore it once —
@@ -93,16 +88,33 @@ export default function StudioShowPage() {
 
   const liveWindowRef = useRef<Window | null>(null);
 
-  const openLiveWindow = useCallback(() => {
-    if (!show) return;
-    if (!liveWindowRef.current || liveWindowRef.current.closed) {
-      liveWindowRef.current = window.open(
-        `/live/${show.id}`,
-        `verseflow-live-${show.id}`,
-        "noopener"
-      );
-    }
-  }, [show]);
+  const openLiveWindow = useCallback(
+    (overrides?: { slideIndex?: number; blackout?: boolean }) => {
+      if (!show) return;
+      // Always push right before opening/focusing — covers every call site
+      // (this button, goTo, keyboard nav) without relying on the
+      // mount-time push having already landed on the server, and
+      // refreshes an already-open window too in case it missed an
+      // earlier update. Callers that just changed activeIndex/blackout
+      // pass the new values directly since React state hasn't
+      // re-rendered yet at this point in the same tick.
+      pushLiveState(show.id, {
+        show,
+        slideIndex: overrides?.slideIndex ?? activeIndex,
+        blackout: overrides?.blackout ?? blackout,
+      });
+      if (!liveWindowRef.current || liveWindowRef.current.closed) {
+        liveWindowRef.current = window.open(
+          `/live/${show.id}`,
+          `verseflow-live-${show.id}`,
+          "noopener"
+        );
+      } else {
+        liveWindowRef.current.focus();
+      }
+    },
+    [show, activeIndex, blackout]
+  );
 
   const goTo = useCallback(
     (index: number) => {
@@ -110,10 +122,10 @@ export default function StudioShowPage() {
       const clamped = Math.max(0, Math.min(index, show.slides.length - 1));
       setActiveIndex(clamped);
       setBlackout(false);
-      // Push before opening: a brand-new live window's first fetch would
-      // otherwise race the state update and briefly show the old slide.
-      pushLiveState(show.id, { show, slideIndex: clamped, blackout: false });
-      openLiveWindow();
+      // Pass the new index/blackout directly: React state hasn't
+      // re-rendered yet, so openLiveWindow's own closure still has the
+      // old values at this point in the same tick.
+      openLiveWindow({ slideIndex: clamped, blackout: false });
     },
     [show, openLiveWindow]
   );
@@ -136,19 +148,59 @@ export default function StudioShowPage() {
   }, [activeIndex, goTo]);
 
   if (show === undefined) {
-    return <main className="flex min-h-screen items-center justify-center text-white/40">Chargement…</main>;
+    return <main className="flex min-h-screen items-center justify-center bg-ink text-white/40">Chargement…</main>;
   }
   if (show === null) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 text-white/60">
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-ink text-white/60">
         <p>Présentation introuvable.</p>
         <Link href="/studio" className="text-accent2 hover:underline">Retour au studio</Link>
       </main>
     );
   }
 
+  // Breaks `text` into chunks that each fit the current verse box (fixed
+  // width/height, per the style), using the studio preview's actual
+  // rendered size to measure — so a slide's text never silently overflows
+  // its zone; the rest flows into a continuation slide instead.
+  const splitLongText = (text: string): string[] => {
+    const el = previewRef.current;
+    if (!el) return [text];
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return [text];
+    const style = show.style;
+    const fontSizePx = (style.fontSize / 100) * rect.width;
+    const fontFamily =
+      style.fontFamily === "custom" && style.customFontName
+        ? `"${style.customFontName}"`
+        : style.fontFamily === "serif"
+          ? "Georgia, serif"
+          : "system-ui, sans-serif";
+    const maxWidthPx = rect.width * ((style.verseBoxWidth ?? defaultStyle.verseBoxWidth) / 100);
+    const maxHeightPx = rect.height * ((style.verseBoxHeight ?? defaultStyle.verseBoxHeight) / 100);
+    const chunks: string[] = [];
+    let remaining = text.trim();
+    let guard = 0;
+    while (remaining && guard < 20) {
+      guard++;
+      const { fitting, rest } = splitTextToFit(remaining, {
+        maxWidthPx,
+        maxHeightPx,
+        fontSizePx,
+        fontFamily,
+        lineHeight: 1.25,
+      });
+      chunks.push(fitting);
+      remaining = rest;
+    }
+    return chunks.length > 0 ? chunks : [text];
+  };
+
   const addSlides = (items: { reference: string; text: string; version: string }[]) => {
-    const newSlides = items.map((it) => newSlide(it.reference, it.text, it.version));
+    const newSlides = items.flatMap((it) => {
+      const chunks = splitLongText(it.text);
+      return chunks.map((chunk) => newSlide(it.reference, chunk, it.version));
+    });
     persist({ ...show, slides: [...show.slides, ...newSlides] });
   };
 
@@ -157,11 +209,18 @@ export default function StudioShowPage() {
   };
 
   const editSlide = (id: string, patch: Partial<Pick<Slide, "reference" | "text" | "version">>) => {
-    const next = {
-      ...show,
-      slides: show.slides.map((s) => (s.id === id ? { ...s, ...patch } : s)),
-    };
-    persist(next);
+    const idx = show.slides.findIndex((s) => s.id === id);
+    if (idx === -1) return;
+    const merged = { ...show.slides[idx], ...patch };
+    const replacement =
+      patch.text !== undefined
+        ? splitLongText(merged.text).map((chunk, i) =>
+            i === 0 ? { ...merged, text: chunk } : newSlide(merged.reference, chunk, merged.version)
+          )
+        : [merged];
+    const slides = [...show.slides];
+    slides.splice(idx, 1, ...replacement);
+    persist({ ...show, slides });
   };
 
   const removeSlide = (id: string) => {
@@ -183,25 +242,14 @@ export default function StudioShowPage() {
 
   const setBackground = (background: BackgroundSource) => persist({ ...show, background });
 
-  // Video always fully covers the frame and has no alpha channel, so
-  // picking one contradicts "Fond transparent" (which hides everything on
-  // purpose) — turn it off so the video is actually visible. Images are
-  // deliberately left alone: they render regardless of that flag, and
-  // forcing it off would also flip the live page's own background to
-  // solid black, which defeats a PNG's alpha channel — exactly what's
-  // needed to composite the output over an external video feed (OBS, a
-  // video mixer...).
-  const setVideoBackground = (background: BackgroundSource) =>
-    persist({ ...show, background, style: { ...show.style, transparentBg: false } });
-
   const handleVideoFile = async (file: File) => {
     await storeMediaBlob(show.id, file);
-    setVideoBackground({ type: "videoFile", name: file.name });
+    setBackground({ type: "videoFile", name: file.name });
   };
 
   const handleVideoUrl = async (url: string) => {
     await removeMediaBlob(show.id);
-    setVideoBackground({ type: "videoUrl", url });
+    setBackground({ type: "videoUrl", url });
   };
 
   const handleImageFile = async (file: File) => {
@@ -246,7 +294,7 @@ export default function StudioShowPage() {
               {blackout ? "Écran noir actif" : "Passer à l'écran noir"}
             </button>
             <button
-              onClick={openLiveWindow}
+              onClick={() => openLiveWindow()}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent/90"
             >
               Ouvrir le Live ↗
@@ -269,7 +317,10 @@ export default function StudioShowPage() {
 
           <section className="col-span-12 lg:col-span-6">
             <h2 className="mb-2 text-sm font-semibold text-white/60">Aperçu</h2>
-            <div className="aspect-video w-full overflow-hidden rounded-xl border border-white/10 shadow-2xl">
+            <div
+              ref={previewRef}
+              className="aspect-video w-full overflow-hidden rounded-xl border border-white/10 shadow-2xl"
+            >
               <ProjectionCanvas
                 mediaUrl={mediaUrl}
                 background={show.background}
@@ -281,10 +332,10 @@ export default function StudioShowPage() {
                 onMoveReference={(p: Point) => setDragStyle((prev) => ({ ...prev, referencePos: p }))}
                 onMoveImage={(p: Point) => setDragStyle((prev) => ({ ...prev, imagePos: p }))}
                 onResizeVerse={(s) =>
-                  setDragStyle((prev) => ({ ...prev, verseBoxWidth: s.width, versePaddingY: s.paddingY }))
+                  setDragStyle((prev) => ({ ...prev, verseBoxWidth: s.width, verseBoxHeight: s.height }))
                 }
                 onResizeReference={(s) =>
-                  setDragStyle((prev) => ({ ...prev, referenceBoxWidth: s.width, referencePaddingY: s.paddingY }))
+                  setDragStyle((prev) => ({ ...prev, referenceBoxWidth: s.width, referenceBoxHeight: s.height }))
                 }
                 onVerseDragEnd={(p: Point) => {
                   setDragStyle(null);
@@ -300,13 +351,13 @@ export default function StudioShowPage() {
                 }}
                 onVerseResizeEnd={(s) => {
                   setDragStyle(null);
-                  persist({ ...show, style: { ...show.style, verseBoxWidth: s.width, versePaddingY: s.paddingY } });
+                  persist({ ...show, style: { ...show.style, verseBoxWidth: s.width, verseBoxHeight: s.height } });
                 }}
                 onReferenceResizeEnd={(s) => {
                   setDragStyle(null);
                   persist({
                     ...show,
-                    style: { ...show.style, referenceBoxWidth: s.width, referencePaddingY: s.paddingY },
+                    style: { ...show.style, referenceBoxWidth: s.width, referenceBoxHeight: s.height },
                   });
                 }}
               />
@@ -349,6 +400,7 @@ export default function StudioShowPage() {
               style={show.style}
               onChange={(patch) => persist({ ...show, style: { ...show.style, ...patch } })}
               showImageControls={show.background.type === "imageFile" || show.background.type === "imageUrl"}
+              isVideoBackground={show.background.type === "videoFile" || show.background.type === "videoUrl"}
             />
           </section>
         </div>
