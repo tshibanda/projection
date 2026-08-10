@@ -4,7 +4,7 @@ const http = require("http");
 
 const PORT = 4173;
 const LIVE_ASPECT_RATIO = 16 / 9;
-const LIVE_WIDTH = 1280;
+const LIVE_WIDTH = 640;
 const LIVE_HEIGHT = Math.round(LIVE_WIDTH / LIVE_ASPECT_RATIO);
 const LIVE_MARGIN = 24;
 const PRELOAD_PATH = path.join(__dirname, "preload.js");
