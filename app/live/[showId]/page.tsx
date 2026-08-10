@@ -136,7 +136,6 @@ export default function LivePage() {
   }, [show]);
 
   const slide = show?.slides[slideIndex] ?? null;
-  const transparent = show?.style.transparentBg ?? false;
 
   return (
     <main className="group relative h-screen w-screen overflow-hidden">
@@ -147,7 +146,7 @@ export default function LivePage() {
       >
         ✕
       </button>
-      {show ? (
+      {show && (
         <ProjectionCanvas
           mediaUrl={mediaUrl}
           background={show.background}
@@ -155,18 +154,6 @@ export default function LivePage() {
           style={show.style}
           blackout={blackout}
         />
-      ) : (
-        !transparent && (
-          <div className="flex h-full flex-col items-center justify-center gap-3 bg-black text-sm text-white/30">
-            <span>En attente de connexion au studio…</span>
-            <button
-              onClick={() => window.location.reload()}
-              className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/60 hover:bg-white/5"
-            >
-              Réessayer
-            </button>
-          </div>
-        )
       )}
     </main>
   );

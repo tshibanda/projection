@@ -148,11 +148,11 @@ export default function StudioShowPage() {
   }, [activeIndex, goTo]);
 
   if (show === undefined) {
-    return <main className="flex min-h-screen items-center justify-center text-white/40">Chargement…</main>;
+    return <main className="flex min-h-screen items-center justify-center bg-ink text-white/40">Chargement…</main>;
   }
   if (show === null) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 text-white/60">
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-ink text-white/60">
         <p>Présentation introuvable.</p>
         <Link href="/studio" className="text-accent2 hover:underline">Retour au studio</Link>
       </main>
