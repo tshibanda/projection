@@ -116,6 +116,12 @@ export default function StudioShowPage() {
     [show, activeIndex, blackout]
   );
 
+  const closeLiveWindow = useCallback(() => {
+    if (liveWindowRef.current && !liveWindowRef.current.closed) {
+      liveWindowRef.current.close();
+    }
+  }, []);
+
   const goTo = useCallback(
     (index: number) => {
       if (!show) return;
@@ -298,6 +304,12 @@ export default function StudioShowPage() {
               className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent/90"
             >
               Ouvrir le Live ↗
+            </button>
+            <button
+              onClick={closeLiveWindow}
+              className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white/70 hover:bg-white/5"
+            >
+              Fermer le Live
             </button>
           </div>
         </header>
