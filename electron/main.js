@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Menu, shell, screen, ipcMain } = require("electron");
 const path = require("path");
 const http = require("http");
+const fs = require("fs");
 
 const PORT = 4173;
 const LIVE_ASPECT_RATIO = 16 / 9;
@@ -15,15 +16,86 @@ let mainWindow;
 let server;
 const liveWindows = new Map();
 
+// Headless render pipeline: instead of (or alongside) an on-screen live
+// window, mirror whatever live state is currently pushed into a hidden
+// window and snapshot it to a single well-known PNG file, for setups that
+// feed OBS an Image Source rather than a Browser/Window Capture. Any
+// presentation's pushes land here — there's only ever one output file.
+const RENDER_WIDTH = 1920;
+const RENDER_HEIGHT = 1080;
+const RENDER_CAPTURE_DEBOUNCE_MS = 200;
+let renderWindow = null;
+let renderCaptureTimer = null;
+let lastPushedLiveState = null;
+let renderOutputPath = null;
+
+// app.getPath must not be called until the app is ready, so this is
+// resolved lazily (getRenderWindow/scheduleRenderCapture only ever run
+// after app.whenReady()) rather than at module load time.
+function getRenderOutputPath() {
+  if (!renderOutputPath) {
+    renderOutputPath = path.join(app.getPath("desktop"), "VerseFlowLIVERender.png");
+  }
+  return renderOutputPath;
+}
+
+function getRenderWindow() {
+  if (renderWindow && !renderWindow.isDestroyed()) return renderWindow;
+  renderWindow = new BrowserWindow({
+    width: RENDER_WIDTH,
+    height: RENDER_HEIGHT,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    paintWhenInitiallyHidden: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: PRELOAD_PATH,
+      backgroundThrottling: false,
+    },
+  });
+  // "render" is never a real show id, so this page just sits idle
+  // (nothing pushed yet) until the first live-state-push arrives over IPC.
+  renderWindow.loadURL(`http://127.0.0.1:${PORT}/live/render`);
+  renderWindow.webContents.once("did-finish-load", () => {
+    if (lastPushedLiveState) {
+      renderWindow.webContents.send("live-state-update", lastPushedLiveState);
+      scheduleRenderCapture();
+    }
+  });
+  return renderWindow;
+}
+
+function scheduleRenderCapture() {
+  if (renderCaptureTimer) clearTimeout(renderCaptureTimer);
+  renderCaptureTimer = setTimeout(async () => {
+    renderCaptureTimer = null;
+    if (!renderWindow || renderWindow.isDestroyed()) return;
+    try {
+      const image = await renderWindow.webContents.capturePage();
+      fs.writeFileSync(getRenderOutputPath(), image.toPNG());
+    } catch (err) {
+      console.error("Failed to write VerseFlowLIVERender.png:", err);
+    }
+  }, RENDER_CAPTURE_DEBOUNCE_MS);
+}
+
 // Relays state pushed by the studio window straight to the matching live
 // window's renderer, over IPC — same-process and independent of the
 // HTTP/SSE sync (which the live window still uses too, and which OBS's
-// Browser Source relies on since it isn't an Electron window at all).
+// Browser Source relies on since it isn't an Electron window at all). Also
+// mirrors every push into the hidden render window, regardless of which
+// show/live window (if any) it targets, and re-snapshots the PNG output.
 ipcMain.on("live-state-push", (_event, { showId, state }) => {
   const win = liveWindows.get(`verseflow-live-${showId}`);
   if (win && !win.isDestroyed()) {
     win.webContents.send("live-state-update", state);
   }
+  lastPushedLiveState = state;
+  getRenderWindow().webContents.send("live-state-update", state);
+  scheduleRenderCapture();
 });
 
 function getAppDir() {
@@ -124,6 +196,14 @@ function createWindow() {
   });
   attachLiveWindowHandling(mainWindow.webContents);
   mainWindow.loadURL(`http://127.0.0.1:${PORT}/studio`);
+  mainWindow.on("closed", () => {
+    // The hidden render window is a real BrowserWindow, so without this it
+    // would keep counting toward "window-all-closed" forever and the app
+    // would never quit on Windows/Linux after the user closes the main one.
+    if (renderWindow && !renderWindow.isDestroyed()) {
+      renderWindow.destroy();
+    }
+  });
 }
 
 Menu.setApplicationMenu(null);

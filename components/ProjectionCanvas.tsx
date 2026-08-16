@@ -313,8 +313,11 @@ export default function ProjectionCanvas({
   // Only fall back to an opaque fill when there is genuinely nothing to
   // show. Otherwise stay transparent so a PNG's own alpha channel (or the
   // real desktop/OBS scene behind a live window) shows through instead of
-  // a solid black rectangle.
-  const rootIsOpaqueFallback = background.type === "none" && !style.transparentBg;
+  // a solid black rectangle. Blackout always wins: it must produce a fully
+  // transparent frame regardless of the show's own background settings, so
+  // an OBS Image Source reading VerseFlowLIVERender.png shows nothing at
+  // all rather than an opaque black square covering the scene beneath it.
+  const rootIsOpaqueFallback = !blackout && background.type === "none" && !style.transparentBg;
 
   return (
     <div

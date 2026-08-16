@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Show } from "@/lib/types";
 import { createShow, deleteShow, listShows } from "@/lib/store";
+import { pushLiveState } from "@/lib/liveSync";
 
 export default function StudioHome() {
   const router = useRouter();
@@ -23,6 +24,14 @@ export default function StudioHome() {
   const handleDelete = (id: string) => {
     deleteShow(id);
     setShows(listShows());
+  };
+
+  // Instead of opening a live window, pushes this presentation's first
+  // slide into the render pipeline (desktop app only): a hidden window
+  // mirrors it and snapshots VerseFlowLIVERender.png for OBS Image Source
+  // setups. Every presentation writes to that same file.
+  const handleLive = (show: Show) => {
+    pushLiveState(show.id, { show, slideIndex: 0, blackout: false });
   };
 
   return (
@@ -79,6 +88,13 @@ export default function StudioHome() {
                 </p>
               </Link>
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleLive(show)}
+                  title="Envoie ce verset vers VerseFlowLIVERender.png (bureau), sans ouvrir de fenêtre"
+                  className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium text-white/70 hover:bg-white/5"
+                >
+                  Live ↗
+                </button>
                 <button
                   onClick={() => handleDelete(show.id)}
                   className="rounded-lg px-2 py-1.5 text-xs text-red-400/70 hover:bg-red-500/10"
