@@ -28,12 +28,13 @@ interface ProjectionCanvasProps {
   onImageDragEnd?: (p: Point) => void;
   onVerseResizeEnd?: (s: BoxSize) => void;
   onReferenceResizeEnd?: (s: BoxSize) => void;
-  // Fired once the background image (if any) has actually finished
-  // decoding and is ready to be painted at its final size — an <img>'s
-  // width comes from CSS but its height is derived from its own natural
-  // dimensions, which aren't known until it loads, so anything that
-  // screenshots this canvas needs to wait for this before capturing.
-  onImageBackgroundReady?: () => void;
+  // Fired once this canvas has genuinely finished settling for the current
+  // slide/style — the background image (if any) has decoded, and any
+  // imported custom font (if any) has loaded — so anything that
+  // screenshots this canvas has a real cue to wait for instead of racing
+  // asset loads with a guessed delay. Fires again on every change that
+  // could invalidate a previous "ready" (new slide, new style, etc.).
+  onReady?: () => void;
 }
 
 function clamp(n: number, min: number, max: number) {
@@ -240,7 +241,7 @@ export default function ProjectionCanvas({
   onImageDragEnd,
   onVerseResizeEnd,
   onReferenceResizeEnd,
-  onImageBackgroundReady,
+  onReady,
 }: ProjectionCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const verseDrag = useDrag(
@@ -281,20 +282,61 @@ export default function ProjectionCanvas({
   const isImageBg = background.type === "imageFile" || background.type === "imageUrl";
   const isVideoBg = background.type === "videoFile" || background.type === "videoUrl";
 
+  // onReady is an AND of two independent conditions — the background image
+  // (if any) decoded, and any imported custom font (if any) loaded — each
+  // tracked in a ref (not state) so a slow one settling late doesn't need
+  // its own re-render to be noticed by the other's check.
+  const readyRef = useRef({ image: true, font: true });
+  const fireReadyIfSettled = useCallback(() => {
+    if (readyRef.current.image && readyRef.current.font) onReady?.();
+  }, [onReady]);
+
+  const needsImageLoad = !blackout && isImageBg && !!mediaUrl;
   useEffect(() => {
-    if (style.fontFamily !== "custom" || !style.customFontName || !style.customFontData) return;
-    if (typeof document === "undefined" || !("fonts" in document)) return;
+    readyRef.current.image = !needsImageLoad;
+    fireReadyIfSettled();
+  }, [needsImageLoad, fireReadyIfSettled]);
+
+  const handleImageLoaded = useCallback(() => {
+    readyRef.current.image = true;
+    fireReadyIfSettled();
+  }, [fireReadyIfSettled]);
+
+  useEffect(() => {
+    const usesCustomFont = style.fontFamily === "custom" || style.referenceFontFamily === "custom";
+    if (!usesCustomFont || !style.customFontName || !style.customFontData) {
+      readyRef.current.font = true;
+      fireReadyIfSettled();
+      return;
+    }
+    if (typeof document === "undefined" || !("fonts" in document)) {
+      readyRef.current.font = true;
+      fireReadyIfSettled();
+      return;
+    }
     const family = style.customFontName;
     const already = Array.from(document.fonts).some((f) => f.family === family);
-    if (already) return;
+    if (already) {
+      readyRef.current.font = true;
+      fireReadyIfSettled();
+      return;
+    }
+    readyRef.current.font = false;
     const face = new FontFace(family, `url(${style.customFontData})`);
     face
       .load()
-      .then((loaded) => document.fonts.add(loaded))
+      .then((loaded) => {
+        document.fonts.add(loaded);
+        readyRef.current.font = true;
+        fireReadyIfSettled();
+      })
       .catch(() => {
-        // Ignore malformed font files; the browser falls back to a default font.
+        // Ignore malformed font files; the browser falls back to a default
+        // font — that fallback is itself the "settled" state here.
+        readyRef.current.font = true;
+        fireReadyIfSettled();
       });
-  }, [style.fontFamily, style.customFontName, style.customFontData]);
+  }, [style.fontFamily, style.referenceFontFamily, style.customFontName, style.customFontData, fireReadyIfSettled]);
 
   const verseFontFamily =
     style.fontFamily === "custom" && style.customFontName ? `"${style.customFontName}"` : undefined;
@@ -358,7 +400,7 @@ export default function ProjectionCanvas({
             alt=""
             className="block w-full"
             draggable={false}
-            onLoad={onImageBackgroundReady}
+            onLoad={handleImageLoaded}
           />
         </div>
       )}

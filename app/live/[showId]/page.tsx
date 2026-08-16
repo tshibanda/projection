@@ -139,29 +139,17 @@ export default function LivePage() {
 
   // Signals the render pipeline (a hidden Electron window snapshotting
   // this page to VerseFlowLIVERender.png) that it's safe to capture right
-  // now. A background image's rendered height depends on its own natural
-  // dimensions, unknown until it decodes, so capturing before that lands
-  // caught only a sliver of it — this makes the capture wait for the real
-  // thing instead of a fixed delay. No-ops outside Electron (e.g. OBS's
-  // Browser Source just renders the DOM directly, nothing to signal).
-  const notifyReadyNextPaint = useCallback(() => {
+  // now — ProjectionCanvas calls this once its background image (if any)
+  // has decoded AND its custom font (if any) has loaded, instead of a
+  // fixed delay racing those asset loads. No-ops outside Electron (e.g.
+  // OBS's Browser Source just renders the DOM directly, nothing to signal).
+  const handleReady = useCallback(() => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         notifyElectronRenderReady();
       });
     });
   }, []);
-
-  const needsImageLoad =
-    !blackout &&
-    !!show &&
-    (show.background.type === "imageFile" || show.background.type === "imageUrl") &&
-    !!mediaUrl;
-
-  useEffect(() => {
-    if (needsImageLoad) return; // onImageBackgroundReady below will signal instead
-    notifyReadyNextPaint();
-  }, [show, slideIndex, blackout, mediaUrl, needsImageLoad, notifyReadyNextPaint]);
 
   return (
     <main className="relative h-screen w-screen overflow-hidden">
@@ -172,7 +160,7 @@ export default function LivePage() {
           slide={slide}
           style={show.style}
           blackout={blackout}
-          onImageBackgroundReady={notifyReadyNextPaint}
+          onReady={handleReady}
         />
       )}
     </main>
