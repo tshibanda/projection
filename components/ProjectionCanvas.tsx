@@ -292,6 +292,16 @@ export default function ProjectionCanvas({
   const verseFontFamily =
     style.fontFamily === "custom" && style.customFontName ? `"${style.customFontName}"` : undefined;
 
+  const referenceFontFamilyChoice = style.referenceFontFamily ?? "sans";
+  const referenceFontFamily =
+    referenceFontFamilyChoice === "custom" && style.customFontName ? `"${style.customFontName}"` : undefined;
+  const referenceFontFamilyClass =
+    referenceFontFamilyChoice === "serif"
+      ? "font-serif italic"
+      : referenceFontFamilyChoice === "custom"
+        ? ""
+        : "font-sans";
+
   const bandBackground = style.bandImage
     ? {
         backgroundImage: `linear-gradient(${hexToRgba(style.bandColor, style.bandOpacity / 100)}, ${hexToRgba(style.bandColor, style.bandOpacity / 100)}), url(${style.bandImage})`,
@@ -430,11 +440,13 @@ export default function ProjectionCanvas({
             <p
               className={[
                 style.showShadow ? "text-shadow-strong" : "",
-                "font-sans uppercase tracking-widest",
+                referenceFontFamilyClass,
+                "uppercase tracking-widest",
               ].join(" ")}
               style={{
                 fontSize: `${referenceFontSize}cqw`,
                 color: style.referenceColor ?? "#22d3ee",
+                fontFamily: referenceFontFamily,
               }}
             >
               {slide.reference}

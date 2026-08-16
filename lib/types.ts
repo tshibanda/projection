@@ -20,6 +20,7 @@ export interface ShowStyle {
   customFontName: string | null; // font-family name registered via FontFace, when fontFamily === "custom"
   customFontData: string | null; // data URL of the imported font file
   fontSize: number; // in cqw units
+  referenceFontFamily: "sans" | "serif" | "custom"; // font for the reference + version line, independent of fontFamily
   referenceFontSize: number; // in cqw units, independent of fontSize
   textColor: string;
   referenceColor: string;
@@ -74,6 +75,7 @@ export const defaultStyle: ShowStyle = {
   customFontName: null,
   customFontData: null,
   fontSize: 4.6,
+  referenceFontFamily: "sans",
   referenceFontSize: 1.5,
   textColor: "#ffffff",
   referenceColor: "#22d3ee",

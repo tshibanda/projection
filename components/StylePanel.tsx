@@ -209,6 +209,38 @@ export default function StylePanel({
         </div>
 
         <div>
+          <label className="mb-1 block text-white/60">Police de la référence / version</label>
+          <div className="flex gap-2">
+            {(["serif", "sans"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => onChange({ referenceFontFamily: f })}
+                className={`flex-1 rounded-lg border px-3 py-2 ${
+                  (style.referenceFontFamily ?? defaultStyle.referenceFontFamily) === f
+                    ? "border-accent bg-accent/20 text-white"
+                    : "border-white/10 text-white/60 hover:bg-white/5"
+                }`}
+              >
+                {f === "serif" ? "Classique" : "Moderne"}
+              </button>
+            ))}
+            {style.customFontName && (
+              <button
+                onClick={() => onChange({ referenceFontFamily: "custom" })}
+                className={`flex-1 truncate rounded-lg border px-3 py-2 ${
+                  (style.referenceFontFamily ?? defaultStyle.referenceFontFamily) === "custom"
+                    ? "border-accent bg-accent/20 text-white"
+                    : "border-white/10 text-white/60 hover:bg-white/5"
+                }`}
+                title={style.customFontName}
+              >
+                {style.customFontName}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div>
           <label className="mb-1 flex justify-between text-white/60">
             <span>Taille de la référence</span>
             <span>{(style.referenceFontSize ?? defaultStyle.referenceFontSize).toFixed(1)}</span>
