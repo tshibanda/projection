@@ -138,7 +138,7 @@ export default function LivePage() {
   const slide = show?.slides[slideIndex] ?? null;
 
   return (
-    <main className="group relative h-screen w-screen cursor-none overflow-hidden">
+    <main className="group relative h-screen w-screen overflow-hidden">
       <button
         onClick={() => window.close()}
         title="Quitter le mode live"
