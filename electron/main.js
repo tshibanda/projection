@@ -4,7 +4,10 @@ const http = require("http");
 
 const PORT = 4173;
 const LIVE_ASPECT_RATIO = 16 / 9;
-const LIVE_WIDTH = 480;
+// Larger on Windows, where the live window is captured directly (Window
+// Capture) rather than via an OBS Browser Source, so its on-screen pixel
+// size is what determines OBS output quality there.
+const LIVE_WIDTH = process.platform === "win32" ? 1280 : 480;
 const LIVE_HEIGHT = Math.round(LIVE_WIDTH / LIVE_ASPECT_RATIO);
 const LIVE_MARGIN = 24;
 const PRELOAD_PATH = path.join(__dirname, "preload.js");
