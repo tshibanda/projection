@@ -28,6 +28,12 @@ interface ProjectionCanvasProps {
   onImageDragEnd?: (p: Point) => void;
   onVerseResizeEnd?: (s: BoxSize) => void;
   onReferenceResizeEnd?: (s: BoxSize) => void;
+  // Fired once the background image (if any) has actually finished
+  // decoding and is ready to be painted at its final size — an <img>'s
+  // width comes from CSS but its height is derived from its own natural
+  // dimensions, which aren't known until it loads, so anything that
+  // screenshots this canvas needs to wait for this before capturing.
+  onImageBackgroundReady?: () => void;
 }
 
 function clamp(n: number, min: number, max: number) {
@@ -234,6 +240,7 @@ export default function ProjectionCanvas({
   onImageDragEnd,
   onVerseResizeEnd,
   onReferenceResizeEnd,
+  onImageBackgroundReady,
 }: ProjectionCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const verseDrag = useDrag(
@@ -345,7 +352,14 @@ export default function ProjectionCanvas({
           style={{ left: `${imagePos.x}%`, top: `${imagePos.y}%`, width: `${imageScale}%` }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={mediaUrl} alt="" className="block w-full" draggable={false} />
+          <img
+            key={mediaUrl}
+            src={mediaUrl}
+            alt=""
+            className="block w-full"
+            draggable={false}
+            onLoad={onImageBackgroundReady}
+          />
         </div>
       )}
       {!blackout && rootIsOpaqueFallback && (

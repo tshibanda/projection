@@ -10,4 +10,8 @@ contextBridge.exposeInMainWorld("verseflowElectron", {
     ipcRenderer.on("live-state-update", handler);
     return () => ipcRenderer.removeListener("live-state-update", handler);
   },
+  // Sent by the live page once its current slide has actually finished
+  // painting (background image decoded, etc.) — the render pipeline's cue
+  // that a screenshot right now won't catch a half-loaded frame.
+  notifyRenderReady: () => ipcRenderer.send("live-render-ready"),
 });

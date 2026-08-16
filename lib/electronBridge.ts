@@ -3,6 +3,7 @@
 interface VerseflowElectronBridge {
   sendLiveState: (showId: string, state: unknown) => void;
   onLiveState: (callback: (state: unknown) => void) => () => void;
+  notifyRenderReady: () => void;
 }
 
 declare global {
@@ -20,4 +21,10 @@ export function sendLiveStateToElectron(showId: string, state: unknown): void {
 export function subscribeElectronLiveState(callback: (state: unknown) => void): () => void {
   if (typeof window === "undefined" || !window.verseflowElectron) return () => {};
   return window.verseflowElectron.onLiveState(callback);
+}
+
+export function notifyElectronRenderReady(): void {
+  if (typeof window !== "undefined") {
+    window.verseflowElectron?.notifyRenderReady();
+  }
 }

@@ -23,14 +23,18 @@ const liveWindows = new Map();
 // presentation's pushes land here — there's only ever one output file.
 const RENDER_WIDTH = 1920;
 const RENDER_HEIGHT = 1080;
-const RENDER_CAPTURE_DEBOUNCE_MS = 200;
+// Fallback only: the live page pings "live-render-ready" once its content
+// (background image included) has actually finished painting, and that
+// triggers an immediate capture — this fixed delay is just a safety net in
+// case that signal is ever lost, so a generous value is fine here.
+const RENDER_CAPTURE_FALLBACK_MS = 800;
 let renderWindow = null;
 let renderCaptureTimer = null;
 let lastPushedLiveState = null;
 let renderOutputPath = null;
 
 // app.getPath must not be called until the app is ready, so this is
-// resolved lazily (getRenderWindow/scheduleRenderCapture only ever run
+// resolved lazily (getRenderWindow/captureRenderWindowNow only ever run
 // after app.whenReady()) rather than at module load time.
 function getRenderOutputPath() {
   if (!renderOutputPath) {
@@ -62,24 +66,28 @@ function getRenderWindow() {
   renderWindow.webContents.once("did-finish-load", () => {
     if (lastPushedLiveState) {
       renderWindow.webContents.send("live-state-update", lastPushedLiveState);
-      scheduleRenderCapture();
+      scheduleRenderCaptureFallback();
     }
   });
   return renderWindow;
 }
 
-function scheduleRenderCapture() {
+async function captureRenderWindowNow() {
+  if (!renderWindow || renderWindow.isDestroyed()) return;
+  try {
+    const image = await renderWindow.webContents.capturePage();
+    fs.writeFileSync(getRenderOutputPath(), image.toPNG());
+  } catch (err) {
+    console.error("Failed to write VerseFlowLIVERender.png:", err);
+  }
+}
+
+function scheduleRenderCaptureFallback() {
   if (renderCaptureTimer) clearTimeout(renderCaptureTimer);
-  renderCaptureTimer = setTimeout(async () => {
+  renderCaptureTimer = setTimeout(() => {
     renderCaptureTimer = null;
-    if (!renderWindow || renderWindow.isDestroyed()) return;
-    try {
-      const image = await renderWindow.webContents.capturePage();
-      fs.writeFileSync(getRenderOutputPath(), image.toPNG());
-    } catch (err) {
-      console.error("Failed to write VerseFlowLIVERender.png:", err);
-    }
-  }, RENDER_CAPTURE_DEBOUNCE_MS);
+    captureRenderWindowNow();
+  }, RENDER_CAPTURE_FALLBACK_MS);
 }
 
 // Relays state pushed by the studio window straight to the matching live
@@ -95,7 +103,18 @@ ipcMain.on("live-state-push", (_event, { showId, state }) => {
   }
   lastPushedLiveState = state;
   getRenderWindow().webContents.send("live-state-update", state);
-  scheduleRenderCapture();
+  scheduleRenderCaptureFallback();
+});
+
+// The live page's own cue that its current frame is actually painted and
+// safe to screenshot — supersedes the fallback timer above when it arrives.
+ipcMain.on("live-render-ready", (event) => {
+  if (!renderWindow || event.sender !== renderWindow.webContents) return;
+  if (renderCaptureTimer) {
+    clearTimeout(renderCaptureTimer);
+    renderCaptureTimer = null;
+  }
+  captureRenderWindowNow();
 });
 
 function getAppDir() {
