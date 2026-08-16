@@ -86,54 +86,17 @@ export default function StudioShowPage() {
     [show, activeIndex]
   );
 
-  const liveWindowRef = useRef<Window | null>(null);
-
-  const openLiveWindow = useCallback(
-    (overrides?: { slideIndex?: number; blackout?: boolean }) => {
-      if (!show) return;
-      // Always push right before opening/focusing — covers every call site
-      // (this button, goTo, keyboard nav) without relying on the
-      // mount-time push having already landed on the server, and
-      // refreshes an already-open window too in case it missed an
-      // earlier update. Callers that just changed activeIndex/blackout
-      // pass the new values directly since React state hasn't
-      // re-rendered yet at this point in the same tick.
-      pushLiveState(show.id, {
-        show,
-        slideIndex: overrides?.slideIndex ?? activeIndex,
-        blackout: overrides?.blackout ?? blackout,
-      });
-      if (!liveWindowRef.current || liveWindowRef.current.closed) {
-        liveWindowRef.current = window.open(
-          `/live/${show.id}`,
-          `verseflow-live-${show.id}`,
-          "noopener"
-        );
-      } else {
-        liveWindowRef.current.focus();
-      }
-    },
-    [show, activeIndex, blackout]
-  );
-
-  const closeLiveWindow = useCallback(() => {
-    if (liveWindowRef.current && !liveWindowRef.current.closed) {
-      liveWindowRef.current.close();
-    }
-  }, []);
-
   const goTo = useCallback(
     (index: number) => {
       if (!show) return;
       const clamped = Math.max(0, Math.min(index, show.slides.length - 1));
       setActiveIndex(clamped);
       setBlackout(false);
-      // Pass the new index/blackout directly: React state hasn't
-      // re-rendered yet, so openLiveWindow's own closure still has the
-      // old values at this point in the same tick.
-      openLiveWindow({ slideIndex: clamped, blackout: false });
+      // No window to open/focus here anymore — the effect below (keyed on
+      // show/activeIndex/blackout) already pushes this to the render
+      // pipeline (VerseFlowLIVERender.png) on every change.
     },
-    [show, openLiveWindow]
+    [show]
   );
 
   useEffect(() => {
@@ -298,18 +261,6 @@ export default function StudioShowPage() {
               }`}
             >
               {blackout ? "Écran noir actif" : "Passer à l'écran noir"}
-            </button>
-            <button
-              onClick={() => openLiveWindow()}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent/90"
-            >
-              Ouvrir le Live ↗
-            </button>
-            <button
-              onClick={closeLiveWindow}
-              className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white/70 hover:bg-white/5"
-            >
-              Fermer le Live
             </button>
           </div>
         </header>
