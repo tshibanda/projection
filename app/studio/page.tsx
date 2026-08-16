@@ -79,13 +79,6 @@ export default function StudioHome() {
                 </p>
               </Link>
               <div className="flex items-center gap-3">
-                <Link
-                  href={`/live/${show.id}`}
-                  target="_blank"
-                  className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium text-white/70 hover:bg-white/5"
-                >
-                  Live ↗
-                </Link>
                 <button
                   onClick={() => handleDelete(show.id)}
                   className="rounded-lg px-2 py-1.5 text-xs text-red-400/70 hover:bg-red-500/10"
