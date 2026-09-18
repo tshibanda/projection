@@ -75,7 +75,21 @@ function getRenderWindow() {
 async function captureRenderWindowNow() {
   if (!renderWindow || renderWindow.isDestroyed()) return;
   try {
-    const image = await renderWindow.webContents.capturePage();
+    let image = await renderWindow.webContents.capturePage();
+    // capturePage() returns pixels at the display's current scale factor
+    // (e.g. 2880x1620 at 150% Windows scaling, 3840x2160 at 200%), not the
+    // window's logical RENDER_WIDTH x RENDER_HEIGHT. OBS's Image Source
+    // reads the file's actual pixel size and, unless the user manually
+    // stretches it to fit the scene, displays it at that native size — on
+    // a 1920x1080 canvas a larger image renders zoomed in and cropped,
+    // which looks like the verse having shifted from where the in-app
+    // preview (always logical, scale-independent) shows it. Normalizing
+    // to the fixed logical size here keeps the exported PNG's pixel
+    // dimensions constant across machines, regardless of display scaling.
+    const size = image.getSize();
+    if (size.width !== RENDER_WIDTH || size.height !== RENDER_HEIGHT) {
+      image = image.resize({ width: RENDER_WIDTH, height: RENDER_HEIGHT, quality: "best" });
+    }
     fs.writeFileSync(getRenderOutputPath(), image.toPNG());
   } catch (err) {
     console.error("Failed to write VerseFlowLIVERender.png:", err);
