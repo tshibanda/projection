@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, screen, ipcMain } = require("electron");
+const { app, BrowserWindow, Menu, shell, screen, ipcMain, nativeImage } = require("electron");
 const path = require("path");
 const http = require("http");
 const fs = require("fs");
@@ -32,6 +32,10 @@ let renderWindow = null;
 let renderCaptureTimer = null;
 let lastPushedLiveState = null;
 let renderOutputPath = null;
+// Set right before the app tears down its windows, so a state push or a
+// capture callback that was already in flight can't sneak in and rewrite
+// the output file after it's been blanked below.
+let isQuitting = false;
 
 // app.getPath must not be called until the app is ready, so this is
 // resolved lazily (getRenderWindow/captureRenderWindowNow only ever run
@@ -72,7 +76,22 @@ function getRenderWindow() {
   return renderWindow;
 }
 
+// Overwrites the exported PNG with a fully transparent frame, the same
+// output an active blackout produces — so an OBS Image Source pointed at
+// this file goes blank the moment VerseFlow quits instead of freezing on
+// whatever verse was on screen last.
+function writeBlankRenderOutput() {
+  try {
+    const buffer = Buffer.alloc(RENDER_WIDTH * RENDER_HEIGHT * 4, 0);
+    const blank = nativeImage.createFromBitmap(buffer, { width: RENDER_WIDTH, height: RENDER_HEIGHT });
+    fs.writeFileSync(getRenderOutputPath(), blank.toPNG());
+  } catch (err) {
+    console.error("Failed to blank VerseFlowLIVERender.png on quit:", err);
+  }
+}
+
 async function captureRenderWindowNow() {
+  if (isQuitting) return;
   if (!renderWindow || renderWindow.isDestroyed()) return;
   try {
     let image = await renderWindow.webContents.capturePage();
@@ -97,6 +116,7 @@ async function captureRenderWindowNow() {
 }
 
 function scheduleRenderCaptureFallback() {
+  if (isQuitting) return;
   if (renderCaptureTimer) clearTimeout(renderCaptureTimer);
   renderCaptureTimer = setTimeout(() => {
     renderCaptureTimer = null;
@@ -254,6 +274,20 @@ app.whenReady().then(async () => {
 app.on("window-all-closed", () => {
   if (server) server.close();
   if (process.platform !== "darwin") app.quit();
+});
+
+// Fires for every real quit path (closing the last window on
+// Windows/Linux funnels into app.quit() above, Cmd+Q/dock-quit on macOS,
+// an OS shutdown signal) — unlike window-all-closed, it's never emitted
+// just from closing windows while the app stays running (e.g. macOS with
+// no window open), so it can't wrongly freeze future captures there.
+app.on("before-quit", () => {
+  isQuitting = true;
+  if (renderCaptureTimer) {
+    clearTimeout(renderCaptureTimer);
+    renderCaptureTimer = null;
+  }
+  writeBlankRenderOutput();
 });
 
 app.on("activate", () => {
