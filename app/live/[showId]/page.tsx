@@ -15,7 +15,7 @@ export default function LivePage() {
 
   const [show, setShow] = useState<Show | null>(null);
   const [slideIndex, setSlideIndex] = useState(0);
-  const [blackout, setBlackout] = useState(false);
+  const [blackout, setBlackout] = useState(true);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
 
   useEffect(() => {

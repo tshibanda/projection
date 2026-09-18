@@ -12,7 +12,7 @@ const states = new Map<string, ServerLiveState>();
 const listeners = new Map<string, Set<Listener>>();
 
 function emptyState(): ServerLiveState {
-  return { show: null, slideIndex: 0, blackout: false, updatedAt: 0 };
+  return { show: null, slideIndex: 0, blackout: true, updatedAt: 0 };
 }
 
 export function getServerState(showId: string): ServerLiveState {

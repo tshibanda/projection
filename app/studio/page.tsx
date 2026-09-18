@@ -31,7 +31,7 @@ export default function StudioHome() {
   // mirrors it and snapshots VerseFlowLIVERender.png for OBS Image Source
   // setups. Every presentation writes to that same file.
   const handleLive = (show: Show) => {
-    pushLiveState(show.id, { show, slideIndex: 0, blackout: false });
+    pushLiveState(show.id, { show, slideIndex: 0, blackout: true });
   };
 
   return (

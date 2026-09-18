@@ -20,7 +20,7 @@ export default function StudioShowPage() {
 
   const [show, setShow] = useState<Show | null | undefined>(undefined);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [blackout, setBlackout] = useState(false);
+  const [blackout, setBlackout] = useState(true);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [savedTick, setSavedTick] = useState(0);
   const [dragStyle, setDragStyle] = useState<Partial<Show["style"]> | null>(null);
