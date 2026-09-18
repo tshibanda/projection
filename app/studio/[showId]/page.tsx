@@ -116,6 +116,76 @@ export default function StudioShowPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activeIndex, goTo]);
 
+  // Breaks `text` into chunks that each fit the current verse box (fixed
+  // width/height, per the style), using the studio preview's actual
+  // rendered size to measure — so a slide's text never silently overflows
+  // its zone; the rest flows into a continuation slide instead.
+  const splitLongText = useCallback(
+    (text: string): string[] => {
+      const el = previewRef.current;
+      if (!show || !el) return [text];
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return [text];
+      const style = show.style;
+      const fontSizePx = (style.fontSize / 100) * rect.width;
+      const fontFamily =
+        style.fontFamily === "custom" && style.customFontName
+          ? `"${style.customFontName}"`
+          : style.fontFamily === "serif"
+            ? "Georgia, serif"
+            : "system-ui, sans-serif";
+      const maxWidthPx = rect.width * ((style.verseBoxWidth ?? defaultStyle.verseBoxWidth) / 100);
+      const maxHeightPx = rect.height * ((style.verseBoxHeight ?? defaultStyle.verseBoxHeight) / 100);
+      const chunks: string[] = [];
+      let remaining = text.trim();
+      let guard = 0;
+      while (remaining && guard < 20) {
+        guard++;
+        const { fitting, rest } = splitTextToFit(remaining, {
+          maxWidthPx,
+          maxHeightPx,
+          fontSizePx,
+          fontFamily,
+          lineHeight: 1.25,
+        });
+        chunks.push(fitting);
+        remaining = rest;
+      }
+      return chunks.length > 0 ? chunks : [text];
+    },
+    [show?.style]
+  );
+
+  // Re-checks every slide's fit whenever something that affects how much
+  // text fits in the verse box changes (font size/family, box dimensions),
+  // not just when a slide's text itself is edited — resizing the box or
+  // bumping the font size can turn a previously-fitting verse into an
+  // overflowing one. Any slide that no longer fits is split in place, with
+  // the overflow flowing into new continuation slide(s) right after it.
+  useEffect(() => {
+    if (!show) return;
+    let changed = false;
+    const nextSlides: Slide[] = [];
+    for (const s of show.slides) {
+      const chunks = splitLongText(s.text);
+      if (chunks.length <= 1) {
+        nextSlides.push(s);
+      } else {
+        changed = true;
+        chunks.forEach((chunk, i) => {
+          nextSlides.push(i === 0 ? { ...s, text: chunk } : newSlide(s.reference, chunk, s.version));
+        });
+      }
+    }
+    if (changed) {
+      persist({ ...show, slides: nextSlides });
+    }
+    // splitLongText's own identity already changes whenever show.style
+    // changes (font, box size, ...), which is every case that can affect
+    // whether a slide's text still fits — no need to list those fields again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splitLongText]);
+
   if (show === undefined) {
     return <main className="flex min-h-screen items-center justify-center bg-ink text-white/40">Chargement…</main>;
   }
@@ -127,43 +197,6 @@ export default function StudioShowPage() {
       </main>
     );
   }
-
-  // Breaks `text` into chunks that each fit the current verse box (fixed
-  // width/height, per the style), using the studio preview's actual
-  // rendered size to measure — so a slide's text never silently overflows
-  // its zone; the rest flows into a continuation slide instead.
-  const splitLongText = (text: string): string[] => {
-    const el = previewRef.current;
-    if (!el) return [text];
-    const rect = el.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return [text];
-    const style = show.style;
-    const fontSizePx = (style.fontSize / 100) * rect.width;
-    const fontFamily =
-      style.fontFamily === "custom" && style.customFontName
-        ? `"${style.customFontName}"`
-        : style.fontFamily === "serif"
-          ? "Georgia, serif"
-          : "system-ui, sans-serif";
-    const maxWidthPx = rect.width * ((style.verseBoxWidth ?? defaultStyle.verseBoxWidth) / 100);
-    const maxHeightPx = rect.height * ((style.verseBoxHeight ?? defaultStyle.verseBoxHeight) / 100);
-    const chunks: string[] = [];
-    let remaining = text.trim();
-    let guard = 0;
-    while (remaining && guard < 20) {
-      guard++;
-      const { fitting, rest } = splitTextToFit(remaining, {
-        maxWidthPx,
-        maxHeightPx,
-        fontSizePx,
-        fontFamily,
-        lineHeight: 1.25,
-      });
-      chunks.push(fitting);
-      remaining = rest;
-    }
-    return chunks.length > 0 ? chunks : [text];
-  };
 
   const addSlides = (items: { reference: string; text: string; version: string }[]) => {
     const newSlides = items.flatMap((it) => {
