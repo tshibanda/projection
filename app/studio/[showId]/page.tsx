@@ -272,7 +272,7 @@ export default function StudioShowPage() {
   return (
     <main className="min-h-screen bg-ink px-6 py-6">
       <div className="mx-auto max-w-[1400px]">
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <header className="sticky top-0 z-20 -mx-6 -mt-6 mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-white/5 bg-ink/95 px-6 py-4 backdrop-blur">
           <div className="flex items-center gap-3">
             <Link href="/studio" className="text-white/40 hover:text-white">←</Link>
             <input
