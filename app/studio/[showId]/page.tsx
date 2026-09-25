@@ -19,7 +19,7 @@ export default function StudioShowPage() {
   const showId = params.showId;
 
   const [show, setShow] = useState<Show | null | undefined>(undefined);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const [blackout, setBlackout] = useState(true);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [savedTick, setSavedTick] = useState(0);
@@ -81,17 +81,18 @@ export default function StudioShowPage() {
     pushLiveState(show.id, { show, slideIndex: activeIndex, blackout });
   }, [show, activeIndex, blackout]);
 
-  // An empty déroulé has nothing to project — force blackout so the live
-  // output/render never shows a leftover slide once the last one is
-  // removed (or before any has been added yet).
-  useEffect(() => {
-    if (show && show.slides.length === 0) setBlackout(true);
-  }, [show?.slides.length]);
-
   const activeSlide = useMemo(
-    () => (show && show.slides[activeIndex]) ?? null,
+    () => (show && activeIndex >= 0 ? (show.slides[activeIndex] ?? null) : null),
     [show, activeIndex]
   );
+
+  // No verse selected (a fresh mount, an empty déroulé, or the active
+  // slide having just been deleted) has nothing to project — force
+  // blackout so the live output/render never shows stale or unintended
+  // content.
+  useEffect(() => {
+    if (show && !activeSlide) setBlackout(true);
+  }, [show, activeSlide]);
 
   const goTo = useCallback(
     (index: number) => {
@@ -236,7 +237,11 @@ export default function StudioShowPage() {
     const idx = show.slides.findIndex((s) => s.id === id);
     const next = { ...show, slides: show.slides.filter((s) => s.id !== id) };
     persist(next);
-    if (idx <= activeIndex) setActiveIndex((i) => Math.max(0, i - (idx === activeIndex ? 0 : 1)));
+    setActiveIndex((i) => {
+      if (i === -1 || idx === -1) return i;
+      if (idx === i) return -1; // the active slide itself was removed: no selection
+      return idx < i ? i - 1 : i;
+    });
   };
 
   const moveSlide = (index: number, dir: -1 | 1) => {
