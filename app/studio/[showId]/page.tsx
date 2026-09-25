@@ -102,10 +102,10 @@ export default function StudioShowPage() {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (["INPUT", "TEXTAREA"].includes((e.target as HTMLElement)?.tagName)) return;
-      if (e.key === "ArrowRight" || e.key === " ") {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " ") {
         e.preventDefault();
         goTo(activeIndex + 1);
-      } else if (e.key === "ArrowLeft") {
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
         e.preventDefault();
         goTo(activeIndex - 1);
       } else if (e.key === "Escape" || e.key.toLowerCase() === "b") {
@@ -367,7 +367,7 @@ export default function StudioShowPage() {
                 ← Précédent
               </button>
               <p className="text-xs text-white/30">
-                Flèches ← → pour naviguer · Échap / B pour l&apos;écran noir
+                Flèches ← → ↑ ↓ pour naviguer · Échap / B pour l&apos;écran noir
               </p>
               <button
                 onClick={() => goTo(activeIndex + 1)}

@@ -3,6 +3,9 @@ setlocal enabledelayedexpansion
 title VerseFlow - Mise a jour
 cd /d "%~dp0"
 
+set "ZIPFILE=%~dp0VerseFlow-win.zip"
+set "INSTALLDIR=%~dp0VerseFlow"
+
 echo ============================================
 echo   VerseFlow - Mise a jour locale
 echo ============================================
@@ -71,12 +74,43 @@ if errorlevel 1 (
 )
 
 echo.
+echo Mise a jour du fichier .zip de l'application...
+set "BUILTZIP="
+for %%f in ("dist-electron\VerseFlow-*-win.zip") do set "BUILTZIP=%%f"
+if not defined BUILTZIP (
+  echo [ERREUR] Aucun .zip trouve dans dist-electron apres la construction.
+  echo.
+  pause
+  exit /b 1
+)
+copy /y "!BUILTZIP!" "%ZIPFILE%" >nul
+if errorlevel 1 (
+  echo [ERREUR] Impossible de copier le .zip vers %ZIPFILE%.
+  echo.
+  pause
+  exit /b 1
+)
+
+echo Extraction complete du .zip dans %INSTALLDIR%...
+if exist "%INSTALLDIR%" rmdir /s /q "%INSTALLDIR%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath '%ZIPFILE%' -DestinationPath '%INSTALLDIR%' -Force"
+if errorlevel 1 (
+  echo [ERREUR] L'extraction du .zip a echoue.
+  echo.
+  pause
+  exit /b 1
+)
+
+echo.
 echo ============================================
 echo   Mise a jour terminee !
 echo ============================================
 echo.
-echo La nouvelle version se trouve dans :
-echo   %cd%\dist-electron\win-unpacked\VerseFlow.exe
+echo La nouvelle version est prete a l'emploi dans :
+echo   %INSTALLDIR%\VerseFlow.exe
+echo.
+echo Le fichier .zip a jour se trouve egalement ici :
+echo   %ZIPFILE%
 echo.
 echo Vos presentations, styles et polices importees sont stockes dans
 echo l'application elle-meme (pas dans ce dossier) : ils ne sont jamais
