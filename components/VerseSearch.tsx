@@ -23,6 +23,15 @@ interface VerseSearchProps {
 }
 
 const MAX_IMPORT_BYTES = 30 * 1024 * 1024;
+const DEFAULT_VERSION_NAME = "LSG";
+
+// Prefers "LSG" among the imported versions (however it was capitalized in
+// the import file), falling back to whichever was imported first if LSG
+// hasn't been imported at all.
+function pickDefaultVersion(names: string[]): string {
+  const lsg = names.find((n) => normalizeForSearch(n) === normalizeForSearch(DEFAULT_VERSION_NAME));
+  return lsg ?? names[0] ?? "";
+}
 
 function searchImported(verses: ImportedVerse[], query: string): ImportedVerse[] {
   const q = normalizeForSearch(query.trim());
@@ -41,7 +50,7 @@ export default function VerseSearch({ onAdd, onAddMany }: VerseSearchProps) {
   const [query, setQuery] = useState("");
   const [customRef, setCustomRef] = useState("");
   const [customText, setCustomText] = useState("");
-  const [customVersion, setCustomVersion] = useState("");
+  const [customVersion, setCustomVersion] = useState(DEFAULT_VERSION_NAME);
   const [showCustom, setShowCustom] = useState(false);
   const [showManageVersions, setShowManageVersions] = useState(false);
 
@@ -55,7 +64,7 @@ export default function VerseSearch({ onAdd, onAddMany }: VerseSearchProps) {
   useEffect(() => {
     const names = listImportedVersionNames();
     setImportedNames(names);
-    if (names.length > 0) setActiveVersion(names[0]);
+    if (names.length > 0) setActiveVersion(pickDefaultVersion(names));
   }, []);
 
   useEffect(() => {
@@ -115,7 +124,7 @@ export default function VerseSearch({ onAdd, onAddMany }: VerseSearchProps) {
     await removeBibleVersion(name);
     const names = listImportedVersionNames();
     setImportedNames(names);
-    if (activeVersion === name) setActiveVersion(names[0] ?? "");
+    if (activeVersion === name) setActiveVersion(pickDefaultVersion(names));
   };
 
   return (
@@ -289,7 +298,7 @@ export default function VerseSearch({ onAdd, onAddMany }: VerseSearchProps) {
             onClick={() => {
               onAdd(customRef.trim() || "Verset personnalisé", customText.trim(), customVersion.trim());
               setCustomRef("");
-              setCustomVersion("");
+              setCustomVersion(DEFAULT_VERSION_NAME);
               setCustomText("");
             }}
             className="w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-40"
