@@ -28,8 +28,12 @@ const RENDER_HEIGHT = 1080;
 // triggers an immediate capture — this fixed delay is just a safety net in
 // case that signal is ever lost, so a generous value is fine here.
 const RENDER_CAPTURE_FALLBACK_MS = 800;
+// See scheduleConfirmCapture() below for why a second capture follows
+// every "real" one.
+const RENDER_CONFIRM_DELAY_MS = 200;
 let renderWindow = null;
 let renderCaptureTimer = null;
+let renderConfirmTimer = null;
 let lastPushedLiveState = null;
 let renderOutputPath = null;
 // Set right before the app tears down its windows, so a state push or a
@@ -121,7 +125,24 @@ function scheduleRenderCaptureFallback() {
   renderCaptureTimer = setTimeout(() => {
     renderCaptureTimer = null;
     captureRenderWindowNow();
+    scheduleConfirmCapture();
   }, RENDER_CAPTURE_FALLBACK_MS);
+}
+
+// capturePage() reads the compositor's current painted frame, which can
+// occasionally lag a beat behind "ready" (the DOM/asset-load signal) —
+// e.g. a background image whose decode just finished isn't guaranteed to
+// have reached the screen buffer at the exact instant this fires. A
+// confirm capture shortly after catches that case; there's no visible
+// cost since this is a hidden window and OBS only ever reads whatever is
+// currently on disk.
+function scheduleConfirmCapture() {
+  if (isQuitting) return;
+  if (renderConfirmTimer) clearTimeout(renderConfirmTimer);
+  renderConfirmTimer = setTimeout(() => {
+    renderConfirmTimer = null;
+    captureRenderWindowNow();
+  }, RENDER_CONFIRM_DELAY_MS);
 }
 
 // Relays state pushed by the studio window straight to the matching live
@@ -149,6 +170,7 @@ ipcMain.on("live-render-ready", (event) => {
     renderCaptureTimer = null;
   }
   captureRenderWindowNow();
+  scheduleConfirmCapture();
 });
 
 function getAppDir() {
@@ -286,6 +308,10 @@ app.on("before-quit", () => {
   if (renderCaptureTimer) {
     clearTimeout(renderCaptureTimer);
     renderCaptureTimer = null;
+  }
+  if (renderConfirmTimer) {
+    clearTimeout(renderConfirmTimer);
+    renderConfirmTimer = null;
   }
   writeBlankRenderOutput();
 });

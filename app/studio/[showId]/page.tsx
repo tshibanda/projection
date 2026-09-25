@@ -81,6 +81,13 @@ export default function StudioShowPage() {
     pushLiveState(show.id, { show, slideIndex: activeIndex, blackout });
   }, [show, activeIndex, blackout]);
 
+  // An empty déroulé has nothing to project — force blackout so the live
+  // output/render never shows a leftover slide once the last one is
+  // removed (or before any has been added yet).
+  useEffect(() => {
+    if (show && show.slides.length === 0) setBlackout(true);
+  }, [show?.slides.length]);
+
   const activeSlide = useMemo(
     () => (show && show.slides[activeIndex]) ?? null,
     [show, activeIndex]
