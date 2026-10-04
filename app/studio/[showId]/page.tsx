@@ -113,15 +113,6 @@ export default function StudioShowPage() {
     [show]
   );
 
-  // Projects a verse straight from search, live, without adding it to
-  // the déroulé or touching which slide (if any) is selected there —
-  // clicking a real slide afterward (goTo) clears this and resumes the
-  // déroulé's own selection.
-  const projectLive = useCallback((reference: string, text: string, version: string) => {
-    setAdHocSlide(newSlide(reference, text, version));
-    setBlackout(false);
-  }, []);
-
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (["INPUT", "TEXTAREA"].includes((e.target as HTMLElement)?.tagName)) return;
@@ -184,6 +175,32 @@ export default function StudioShowPage() {
       return chunks.length > 0 ? chunks : [text];
     },
     [show?.style]
+  );
+
+  // Projects a verse straight from search, live. When it fits as a single
+  // slide, this doesn't touch the déroulé at all — clicking a real slide
+  // afterward (goTo) clears it and resumes the déroulé's own selection.
+  // When it doesn't fit, it's split exactly like any other overflowing
+  // verse (never shrunk, never clipped) and the resulting slides are
+  // appended to the déroulé so there's somewhere for each piece to live;
+  // the first piece is shown immediately.
+  const projectLive = useCallback(
+    (reference: string, text: string, version: string) => {
+      const chunks = splitLongText(text);
+      if (chunks.length <= 1) {
+        setAdHocSlide(newSlide(reference, text, version));
+        setBlackout(false);
+        return;
+      }
+      if (!show) return;
+      const insertIndex = show.slides.length;
+      const newSlides = chunks.map((chunk) => newSlide(reference, chunk, version));
+      setAdHocSlide(null);
+      persist({ ...show, slides: [...show.slides, ...newSlides] });
+      setActiveIndex(insertIndex);
+      setBlackout(false);
+    },
+    [show, splitLongText, persist]
   );
 
   // Re-checks every slide's fit whenever something that affects how much
