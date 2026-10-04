@@ -21,12 +21,6 @@ export async function POST(
     slideIndex: typeof body.slideIndex === "number" ? body.slideIndex : undefined,
     blackout: typeof body.blackout === "boolean" ? body.blackout : undefined,
   };
-  // Distinguish "not mentioned" (key absent, leave the server's current
-  // value alone) from an explicit null (clear the ad-hoc override) —
-  // JSON only has one of the two falsy forms, so this check is safe.
-  if ("adHocSlide" in body) {
-    patch.adHocSlide = body.adHocSlide ?? null;
-  }
   const next = setServerState(params.showId, patch);
   return NextResponse.json(next);
 }

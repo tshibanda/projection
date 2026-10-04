@@ -1,11 +1,11 @@
 "use client";
 
-import { Show, Slide, ServerLiveState } from "./types";
+import { Show, ServerLiveState } from "./types";
 import { sendLiveStateToElectron } from "./electronBridge";
 
 export async function pushLiveState(
   showId: string,
-  patch: { show?: Show; slideIndex?: number; blackout?: boolean; adHocSlide?: Slide | null }
+  patch: { show?: Show; slideIndex?: number; blackout?: boolean }
 ): Promise<void> {
   // In the desktop app, also relay over IPC — same-process and
   // independent of this HTTP round trip, so the in-app live window isn't

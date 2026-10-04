@@ -21,7 +21,6 @@ export default function StudioShowPage() {
   const [show, setShow] = useState<Show | null | undefined>(undefined);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [blackout, setBlackout] = useState(true);
-  const [adHocSlide, setAdHocSlide] = useState<Slide | null>(null);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [savedTick, setSavedTick] = useState(0);
   const [dragStyle, setDragStyle] = useState<Partial<Show["style"]> | null>(null);
@@ -79,32 +78,27 @@ export default function StudioShowPage() {
 
   useEffect(() => {
     if (!show) return;
-    pushLiveState(show.id, { show, slideIndex: activeIndex, blackout, adHocSlide });
-  }, [show, activeIndex, blackout, adHocSlide]);
+    pushLiveState(show.id, { show, slideIndex: activeIndex, blackout });
+  }, [show, activeIndex, blackout]);
 
   const activeSlide = useMemo(
     () => (show && activeIndex >= 0 ? (show.slides[activeIndex] ?? null) : null),
     [show, activeIndex]
   );
 
-  // What's actually being displayed/pushed: a verse projected straight
-  // from search takes priority over the déroulé's own selection.
-  const displaySlide = adHocSlide ?? activeSlide;
-
-  // Nothing selected and no ad-hoc verse (a fresh mount, an empty
-  // déroulé, or the active slide having just been deleted) has nothing
-  // to project — force blackout so the live output/render never shows
-  // stale or unintended content.
+  // Nothing selected (a fresh mount, an empty déroulé, or the active
+  // slide having just been deleted) has nothing to project — force
+  // blackout so the live output/render never shows stale or unintended
+  // content.
   useEffect(() => {
-    if (show && !displaySlide) setBlackout(true);
-  }, [show, displaySlide]);
+    if (show && !activeSlide) setBlackout(true);
+  }, [show, activeSlide]);
 
   const goTo = useCallback(
     (index: number) => {
       if (!show) return;
       const clamped = Math.max(0, Math.min(index, show.slides.length - 1));
       setActiveIndex(clamped);
-      setAdHocSlide(null);
       setBlackout(false);
       // No window to open/focus here anymore — the effect below (keyed on
       // show/activeIndex/blackout) already pushes this to the render
@@ -177,25 +171,16 @@ export default function StudioShowPage() {
     [show?.style]
   );
 
-  // Projects a verse straight from search, live. When it fits as a single
-  // slide, this doesn't touch the déroulé at all — clicking a real slide
-  // afterward (goTo) clears it and resumes the déroulé's own selection.
-  // When it doesn't fit, it's split exactly like any other overflowing
-  // verse (never shrunk, never clipped) and the resulting slides are
-  // appended to the déroulé so there's somewhere for each piece to live;
-  // the first piece is shown immediately.
+  // Projects a verse straight from search: adds it to the déroulé — split
+  // across multiple slides first if it doesn't fit as one, exactly like
+  // any other overflowing verse (never shrunk, never clipped) — then
+  // jumps live to the first of the newly-added slides immediately.
   const projectLive = useCallback(
     (reference: string, text: string, version: string) => {
-      const chunks = splitLongText(text);
-      if (chunks.length <= 1) {
-        setAdHocSlide(newSlide(reference, text, version));
-        setBlackout(false);
-        return;
-      }
       if (!show) return;
+      const chunks = splitLongText(text);
       const insertIndex = show.slides.length;
       const newSlides = chunks.map((chunk) => newSlide(reference, chunk, version));
-      setAdHocSlide(null);
       persist({ ...show, slides: [...show.slides, ...newSlides] });
       setActiveIndex(insertIndex);
       setBlackout(false);
@@ -371,7 +356,7 @@ export default function StudioShowPage() {
               <ProjectionCanvas
                 mediaUrl={mediaUrl}
                 background={show.background}
-                slide={displaySlide}
+                slide={activeSlide}
                 style={dragStyle ? { ...show.style, ...dragStyle } : show.style}
                 blackout={blackout}
                 editable

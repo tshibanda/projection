@@ -20,7 +20,7 @@ export interface VerseToAdd {
 interface VerseSearchProps {
   onAdd: (reference: string, text: string, version: string) => void;
   onAddMany: (items: VerseToAdd[]) => void;
-  // Projects a verse live immediately, without adding it to the déroulé.
+  // Adds the verse to the déroulé and immediately shows it live.
   onProjectLive: (reference: string, text: string, version: string) => void;
 }
 
@@ -48,8 +48,10 @@ function searchImported(verses: ImportedVerse[], query: string): ImportedVerse[]
   return results;
 }
 
-// A single search result: the main area adds the verse to the déroulé,
-// the small side button projects it live immediately without adding it.
+// A single search result: the main area adds the verse to the déroulé
+// without changing what's live; the small side button also adds it (split
+// across multiple slides first if it doesn't fit as one) and immediately
+// shows the first of those slides live.
 function VerseResultRow({
   reference,
   text,
@@ -69,7 +71,7 @@ function VerseResultRow({
       </button>
       <button
         onClick={onProjectLive}
-        title="Projeter en live sans l'ajouter au déroulé"
+        title="Ajouter au déroulé et projeter en live immédiatement"
         className="shrink-0 self-center rounded-lg px-2 py-2 text-accent2 hover:bg-accent/20"
       >
         ▶

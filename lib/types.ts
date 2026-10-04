@@ -67,11 +67,6 @@ export interface ServerLiveState {
   show: Show | null;
   slideIndex: number;
   blackout: boolean;
-  // Overrides show.slides[slideIndex] on the live/render side when set —
-  // for projecting a verse straight from search without adding it to the
-  // déroulé. Doesn't touch the show's own slides or the studio's current
-  // selection.
-  adHocSlide?: Slide | null;
   updatedAt: number;
 }
 
