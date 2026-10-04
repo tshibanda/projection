@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseBibleJson, ImportedVerse } from "@/lib/bibleParse";
-import { parseReferenceQuery, referenceFor } from "@/lib/verseReference";
+import { parseReferenceQuery, referenceFor, chapterPrefixFor } from "@/lib/verseReference";
 import { normalizeForSearch } from "@/lib/textNormalize";
 import {
   listImportedVersionNames,
@@ -20,6 +20,8 @@ export interface VerseToAdd {
 interface VerseSearchProps {
   onAdd: (reference: string, text: string, version: string) => void;
   onAddMany: (items: VerseToAdd[]) => void;
+  // Projects a verse live immediately, without adding it to the déroulé.
+  onProjectLive: (reference: string, text: string, version: string) => void;
 }
 
 const MAX_IMPORT_BYTES = 30 * 1024 * 1024;
@@ -46,7 +48,37 @@ function searchImported(verses: ImportedVerse[], query: string): ImportedVerse[]
   return results;
 }
 
-export default function VerseSearch({ onAdd, onAddMany }: VerseSearchProps) {
+// A single search result: the main area adds the verse to the déroulé,
+// the small side button projects it live immediately without adding it.
+function VerseResultRow({
+  reference,
+  text,
+  onAdd,
+  onProjectLive,
+}: {
+  reference: string;
+  text: string;
+  onAdd: () => void;
+  onProjectLive: () => void;
+}) {
+  return (
+    <div className="flex items-stretch gap-1">
+      <button onClick={onAdd} className="min-w-0 flex-1 rounded-lg px-3 py-2 text-left text-sm hover:bg-white/5">
+        <span className="block font-medium text-accent2">{reference}</span>
+        <span className="block truncate text-white/60">{text}</span>
+      </button>
+      <button
+        onClick={onProjectLive}
+        title="Projeter en live sans l'ajouter au déroulé"
+        className="shrink-0 self-center rounded-lg px-2 py-2 text-accent2 hover:bg-accent/20"
+      >
+        ▶
+      </button>
+    </div>
+  );
+}
+
+export default function VerseSearch({ onAdd, onAddMany, onProjectLive }: VerseSearchProps) {
   const [query, setQuery] = useState("");
   const [customRef, setCustomRef] = useState("");
   const [customText, setCustomText] = useState("");
@@ -85,8 +117,15 @@ export default function VerseSearch({ onAdd, onAddMany }: VerseSearchProps) {
 
   const exactMatches = useMemo(() => {
     if (!refQuery || !activeVerses) return [];
+    if (refQuery.start === null) {
+      // Whole chapter (e.g. "Jean 5") — pull every verse sharing the
+      // "book chapter:" prefix, in the order they appear in the source
+      // (already chapter/verse order from the import file).
+      const prefix = normalizeForSearch(chapterPrefixFor(refQuery.book, refQuery.chapter));
+      return activeVerses.filter((av) => normalizeForSearch(av.reference).startsWith(prefix));
+    }
     const wanted: ImportedVerse[] = [];
-    for (let v = refQuery.start; v <= refQuery.end; v++) {
+    for (let v = refQuery.start; v <= refQuery.end!; v++) {
       const target = normalizeForSearch(referenceFor(refQuery.book, refQuery.chapter, v));
       const found = activeVerses.find((av) => normalizeForSearch(av.reference) === target);
       if (found) wanted.push(found);
@@ -207,7 +246,7 @@ export default function VerseSearch({ onAdd, onAddMany }: VerseSearchProps) {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher (ex: Jean 4:4, Jean 4:4-6, espérance...)"
+            placeholder="Rechercher (ex: Jean 4:4, Jean 4:4-6, Jean 5, espérance...)"
             className="w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm outline-none focus:border-accent"
           />
           <div className="mt-3 max-h-64 space-y-1 overflow-y-auto">
@@ -216,14 +255,26 @@ export default function VerseSearch({ onAdd, onAddMany }: VerseSearchProps) {
                 <p className="px-3 py-2 text-sm text-white/40">
                   {activeVerses ? "Aucun verset trouvé pour cette référence." : "Chargement…"}
                 </p>
+              ) : refQuery.start === null ? (
+                // Whole chapter (e.g. "Jean 5") — list every verse
+                // individually so the user can pick which ones to add,
+                // same as a free-text search result.
+                exactMatches.map((v) => (
+                  <VerseResultRow
+                    key={v.reference}
+                    reference={v.reference}
+                    text={v.text}
+                    onAdd={() => onAdd(v.reference, v.text, activeVersion)}
+                    onProjectLive={() => onProjectLive(v.reference, v.text, activeVersion)}
+                  />
+                ))
               ) : refQuery.end === refQuery.start ? (
-                <button
-                  onClick={() => onAdd(exactMatches[0].reference, exactMatches[0].text, activeVersion)}
-                  className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/5"
-                >
-                  <span className="block font-medium text-accent2">{exactMatches[0].reference}</span>
-                  <span className="block truncate text-white/60">{exactMatches[0].text}</span>
-                </button>
+                <VerseResultRow
+                  reference={exactMatches[0].reference}
+                  text={exactMatches[0].text}
+                  onAdd={() => onAdd(exactMatches[0].reference, exactMatches[0].text, activeVersion)}
+                  onProjectLive={() => onProjectLive(exactMatches[0].reference, exactMatches[0].text, activeVersion)}
+                />
               ) : (
                 <button
                   onClick={() =>
@@ -245,14 +296,13 @@ export default function VerseSearch({ onAdd, onAddMany }: VerseSearchProps) {
             ) : (
               <>
                 {results.map((v) => (
-                  <button
+                  <VerseResultRow
                     key={v.reference}
-                    onClick={() => onAdd(v.reference, v.text, activeVersion)}
-                    className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/5"
-                  >
-                    <span className="block font-medium text-accent2">{v.reference}</span>
-                    <span className="block truncate text-white/60">{v.text}</span>
-                  </button>
+                    reference={v.reference}
+                    text={v.text}
+                    onAdd={() => onAdd(v.reference, v.text, activeVersion)}
+                    onProjectLive={() => onProjectLive(v.reference, v.text, activeVersion)}
+                  />
                 ))}
                 {results.length === 0 && (
                   <p className="px-3 py-2 text-sm text-white/40">

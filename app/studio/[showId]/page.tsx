@@ -21,6 +21,7 @@ export default function StudioShowPage() {
   const [show, setShow] = useState<Show | null | undefined>(undefined);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [blackout, setBlackout] = useState(true);
+  const [adHocSlide, setAdHocSlide] = useState<Slide | null>(null);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [savedTick, setSavedTick] = useState(0);
   const [dragStyle, setDragStyle] = useState<Partial<Show["style"]> | null>(null);
@@ -78,27 +79,32 @@ export default function StudioShowPage() {
 
   useEffect(() => {
     if (!show) return;
-    pushLiveState(show.id, { show, slideIndex: activeIndex, blackout });
-  }, [show, activeIndex, blackout]);
+    pushLiveState(show.id, { show, slideIndex: activeIndex, blackout, adHocSlide });
+  }, [show, activeIndex, blackout, adHocSlide]);
 
   const activeSlide = useMemo(
     () => (show && activeIndex >= 0 ? (show.slides[activeIndex] ?? null) : null),
     [show, activeIndex]
   );
 
-  // No verse selected (a fresh mount, an empty déroulé, or the active
-  // slide having just been deleted) has nothing to project — force
-  // blackout so the live output/render never shows stale or unintended
-  // content.
+  // What's actually being displayed/pushed: a verse projected straight
+  // from search takes priority over the déroulé's own selection.
+  const displaySlide = adHocSlide ?? activeSlide;
+
+  // Nothing selected and no ad-hoc verse (a fresh mount, an empty
+  // déroulé, or the active slide having just been deleted) has nothing
+  // to project — force blackout so the live output/render never shows
+  // stale or unintended content.
   useEffect(() => {
-    if (show && !activeSlide) setBlackout(true);
-  }, [show, activeSlide]);
+    if (show && !displaySlide) setBlackout(true);
+  }, [show, displaySlide]);
 
   const goTo = useCallback(
     (index: number) => {
       if (!show) return;
       const clamped = Math.max(0, Math.min(index, show.slides.length - 1));
       setActiveIndex(clamped);
+      setAdHocSlide(null);
       setBlackout(false);
       // No window to open/focus here anymore — the effect below (keyed on
       // show/activeIndex/blackout) already pushes this to the render
@@ -106,6 +112,15 @@ export default function StudioShowPage() {
     },
     [show]
   );
+
+  // Projects a verse straight from search, live, without adding it to
+  // the déroulé or touching which slide (if any) is selected there —
+  // clicking a real slide afterward (goTo) clears this and resumes the
+  // déroulé's own selection.
+  const projectLive = useCallback((reference: string, text: string, version: string) => {
+    setAdHocSlide(newSlide(reference, text, version));
+    setBlackout(false);
+  }, []);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -332,7 +347,7 @@ export default function StudioShowPage() {
               <ProjectionCanvas
                 mediaUrl={mediaUrl}
                 background={show.background}
-                slide={activeSlide}
+                slide={displaySlide}
                 style={dragStyle ? { ...show.style, ...dragStyle } : show.style}
                 blackout={blackout}
                 editable
@@ -391,7 +406,7 @@ export default function StudioShowPage() {
             </div>
 
             <div className="mt-6">
-              <VerseSearch onAdd={addSlide} onAddMany={addSlides} />
+              <VerseSearch onAdd={addSlide} onAddMany={addSlides} onProjectLive={projectLive} />
             </div>
           </section>
 

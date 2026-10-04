@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Show } from "@/lib/types";
+import { Show, Slide } from "@/lib/types";
 import { fetchLiveState, subscribeLiveState } from "@/lib/liveSync";
 import { subscribeElectronLiveState, notifyElectronRenderReady } from "@/lib/electronBridge";
 import { loadMediaBlob } from "@/lib/mediaDb";
@@ -16,6 +16,7 @@ export default function LivePage() {
   const [show, setShow] = useState<Show | null>(null);
   const [slideIndex, setSlideIndex] = useState(0);
   const [blackout, setBlackout] = useState(true);
+  const [adHocSlide, setAdHocSlide] = useState<Slide | null>(null);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,7 +34,12 @@ export default function LivePage() {
     const localShow = getShow(showId);
     if (localShow) setShow(localShow);
 
-    const applyState = (state: { show: Show | null; slideIndex: number; blackout: boolean }) => {
+    const applyState = (state: {
+      show: Show | null;
+      slideIndex: number;
+      blackout: boolean;
+      adHocSlide?: Slide | null;
+    }) => {
       if (!mounted) return;
       if (state.show) {
         gotShow = true;
@@ -41,6 +47,7 @@ export default function LivePage() {
       }
       setSlideIndex(state.slideIndex);
       setBlackout(state.blackout);
+      if ("adHocSlide" in state) setAdHocSlide(state.adHocSlide ?? null);
     };
 
     fetchLiveState(showId).then((state) => {
@@ -54,7 +61,7 @@ export default function LivePage() {
     // might be interrupting the HTTP/SSE path. The payload here mirrors
     // what the studio pushes: a partial {show?, slideIndex?, blackout?}.
     const unsubscribeElectron = subscribeElectronLiveState((raw) => {
-      const patch = raw as { show?: Show; slideIndex?: number; blackout?: boolean };
+      const patch = raw as { show?: Show; slideIndex?: number; blackout?: boolean; adHocSlide?: Slide | null };
       if (!mounted) return;
       if (patch.show) {
         gotShow = true;
@@ -62,6 +69,7 @@ export default function LivePage() {
       }
       if (typeof patch.slideIndex === "number") setSlideIndex(patch.slideIndex);
       if (typeof patch.blackout === "boolean") setBlackout(patch.blackout);
+      if ("adHocSlide" in patch) setAdHocSlide(patch.adHocSlide ?? null);
     });
 
     // Belt-and-suspenders: if the initial fetch and the SSE stream both
@@ -135,7 +143,7 @@ export default function LivePage() {
     };
   }, [show]);
 
-  const slide = show?.slides[slideIndex] ?? null;
+  const slide = adHocSlide ?? show?.slides[slideIndex] ?? null;
 
   // Signals the render pipeline (a hidden Electron window snapshotting
   // this page to VerseFlowLIVERender.png) that it's safe to capture right
