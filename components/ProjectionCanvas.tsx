@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Point, Slide, ShowStyle, BackgroundSource } from "@/lib/types";
 import { hexToRgba } from "@/lib/color";
 
@@ -39,55 +39,6 @@ interface ProjectionCanvasProps {
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
-}
-
-// Shrinks a text element's font size until it fits the (fixed-size) box
-// around it, instead of letting it overflow and get clipped by the box's
-// own overflow-hidden — the box itself never changes size or moves; only
-// the text's own formatting adapts. Measures the real, rendered DOM
-// (scrollHeight/scrollWidth vs the wrapper's actual clientHeight/Width),
-// not an estimate, so it's exactly as accurate in the studio preview, the
-// live window and the headless PNG render — the same component renders
-// all three. FLOOR is a last-resort safety cap for pathological content;
-// in normal use the text settles well above it.
-const AUTO_FIT_FLOOR = 0.15;
-const AUTO_FIT_MAX_ITERATIONS = 12;
-
-function useAutoFitFontScale(
-  wrapRef: React.RefObject<HTMLElement>,
-  textRef: React.RefObject<HTMLElement>,
-  baseFontSize: number,
-  deps: React.DependencyList
-): number {
-  const [scale, setScale] = useState(1);
-  useLayoutEffect(() => {
-    const wrap = wrapRef.current;
-    const text = textRef.current;
-    if (!wrap || !text || !baseFontSize || wrap.clientHeight <= 0 || wrap.clientWidth <= 0) {
-      setScale(1);
-      return;
-    }
-    let current = 1;
-    text.style.fontSize = `${baseFontSize * current}cqw`;
-    const overflowing = () =>
-      text.scrollHeight > wrap.clientHeight + 0.5 || text.scrollWidth > wrap.clientWidth + 0.5;
-    let guard = 0;
-    while (overflowing() && current > AUTO_FIT_FLOOR && guard < AUTO_FIT_MAX_ITERATIONS) {
-      // Shrink proportionally to how much it's currently overflowing by,
-      // with a small safety margin so rounding doesn't leave it right on
-      // the edge after the next re-measure.
-      const heightRatio = wrap.clientHeight / text.scrollHeight;
-      const widthRatio = wrap.clientWidth / text.scrollWidth;
-      const ratio = Math.min(heightRatio, widthRatio, 1) * 0.97;
-      current = Math.max(AUTO_FIT_FLOOR, current * ratio);
-      text.style.fontSize = `${baseFontSize * current}cqw`;
-      guard++;
-    }
-    setScale(current);
-    // deps intentionally drive re-measurement; the hook itself is generic.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
-  return scale;
 }
 
 const DRAG_THRESHOLD_PX = 4;
@@ -400,38 +351,6 @@ export default function ProjectionCanvas({
         ? ""
         : "font-sans";
 
-  // Real, rendered-DOM auto-fit: shrinks the verse/reference text until it
-  // fits its (fixed-size, never-changing) box, instead of letting overflow
-  // get clipped by the box's own overflow-hidden.
-  const verseWrapRef = useRef<HTMLDivElement>(null);
-  const verseTextRef = useRef<HTMLParagraphElement>(null);
-  const referenceWrapRef = useRef<HTMLDivElement>(null);
-  const referenceTextRef = useRef<HTMLParagraphElement>(null);
-
-  const verseFontScale = useAutoFitFontScale(verseWrapRef, verseTextRef, style.fontSize, [
-    slide?.text,
-    style.fontSize,
-    style.fontFamily,
-    verseFontFamily,
-    style.showOutline,
-    style.verseTextAlign,
-    verseBoxWidth,
-    verseBoxHeight,
-    style.bandEnabled,
-    style.bandWidth,
-    blackout,
-  ]);
-  const referenceFontScale = useAutoFitFontScale(referenceWrapRef, referenceTextRef, referenceFontSize, [
-    slide?.reference,
-    slide?.version,
-    referenceFontSize,
-    referenceFontFamilyChoice,
-    referenceFontFamily,
-    referenceBoxWidth,
-    referenceBoxHeight,
-    blackout,
-  ]);
-
   const bandBackground = style.bandImage
     ? {
         backgroundImage: `linear-gradient(${hexToRgba(style.bandColor, style.bandOpacity / 100)}, ${hexToRgba(style.bandColor, style.bandOpacity / 100)}), url(${style.bandImage})`,
@@ -514,7 +433,6 @@ export default function ProjectionCanvas({
               resize handles (anchored on the box's own border) stay fully
               interactive instead of being clipped along with overflow text. */}
           <div
-            ref={verseWrapRef}
             className={`flex h-full w-full flex-col justify-center overflow-hidden ${
               style.verseTextAlign === "right"
                 ? "items-end text-right"
@@ -534,7 +452,6 @@ export default function ProjectionCanvas({
               style={style.bandEnabled ? bandBackground : undefined}
             >
               <p
-                ref={verseTextRef}
                 className={[
                   style.fontFamily === "serif"
                     ? "font-serif italic"
@@ -546,7 +463,7 @@ export default function ProjectionCanvas({
                   "leading-tight transition-opacity duration-300",
                 ].join(" ")}
                 style={{
-                  fontSize: `${style.fontSize * verseFontScale}cqw`,
+                  fontSize: `${style.fontSize}cqw`,
                   color: style.textColor,
                   fontFamily: verseFontFamily,
                 }}
@@ -578,16 +495,15 @@ export default function ProjectionCanvas({
             height: `${referenceBoxHeight}%`,
           }}
         >
-          <div ref={referenceWrapRef} className="flex h-full w-full flex-col items-center justify-center overflow-hidden text-center">
+          <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden text-center">
             <p
-              ref={referenceTextRef}
               className={[
                 style.showShadow ? "text-shadow-strong" : "",
                 referenceFontFamilyClass,
                 "uppercase tracking-widest",
               ].join(" ")}
               style={{
-                fontSize: `${referenceFontSize * referenceFontScale}cqw`,
+                fontSize: `${referenceFontSize}cqw`,
                 color: style.referenceColor ?? "#22d3ee",
                 fontFamily: referenceFontFamily,
               }}

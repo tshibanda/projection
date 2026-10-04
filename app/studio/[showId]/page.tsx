@@ -7,7 +7,7 @@ import { BackgroundSource, Point, Show, Slide, defaultStyle } from "@/lib/types"
 import { getShow, newSlide, saveShow } from "@/lib/store";
 import { loadMediaBlob, removeMediaBlob, storeMediaBlob } from "@/lib/mediaDb";
 import { pushLiveState } from "@/lib/liveSync";
-import { splitTextToFit } from "@/lib/textFit";
+import { splitTextToFitDom } from "@/lib/domTextFit";
 import ProjectionCanvas from "@/components/ProjectionCanvas";
 import SlideList from "@/components/SlideList";
 import VerseSearch from "@/components/VerseSearch";
@@ -140,9 +140,12 @@ export default function StudioShowPage() {
   }, [activeIndex, goTo]);
 
   // Breaks `text` into chunks that each fit the current verse box (fixed
-  // width/height, per the style), using the studio preview's actual
-  // rendered size to measure — so a slide's text never silently overflows
-  // its zone; the rest flows into a continuation slide instead.
+  // width/height, per the style) into additional déroulé slides — the
+  // zone and the text's own formatting (font size) never change; only
+  // how much text occupies each slide does. Measures with a real, hidden
+  // DOM element using the studio preview's actual rendered size and the
+  // exact font/weight/style the verse box renders with, so a slide's
+  // text never silently overflows its zone.
   const splitLongText = useCallback(
     (text: string): string[] => {
       const el = previewRef.current;
@@ -155,8 +158,10 @@ export default function StudioShowPage() {
         style.fontFamily === "custom" && style.customFontName
           ? `"${style.customFontName}"`
           : style.fontFamily === "serif"
-            ? "Georgia, serif"
-            : "system-ui, sans-serif";
+            ? '"Georgia", "Times New Roman", serif'
+            : '"Inter", system-ui, sans-serif';
+      const fontWeight = style.fontFamily === "sans" ? "600" : "normal";
+      const fontStyle = style.fontFamily === "serif" ? "italic" : "normal";
       const maxWidthPx = rect.width * ((style.verseBoxWidth ?? defaultStyle.verseBoxWidth) / 100);
       const maxHeightPx = rect.height * ((style.verseBoxHeight ?? defaultStyle.verseBoxHeight) / 100);
       const chunks: string[] = [];
@@ -164,11 +169,13 @@ export default function StudioShowPage() {
       let guard = 0;
       while (remaining && guard < 20) {
         guard++;
-        const { fitting, rest } = splitTextToFit(remaining, {
+        const { fitting, rest } = splitTextToFitDom(remaining, {
           maxWidthPx,
           maxHeightPx,
           fontSizePx,
           fontFamily,
+          fontWeight,
+          fontStyle,
           lineHeight: 1.25,
         });
         chunks.push(fitting);
