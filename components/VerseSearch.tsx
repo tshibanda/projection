@@ -94,6 +94,7 @@ export default function VerseSearch({ onAdd, onAddMany, onProjectLive }: VerseSe
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const queryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const names = listImportedVersionNames();
@@ -116,6 +117,39 @@ export default function VerseSearch({ onAdd, onAddMany, onProjectLive }: VerseSe
   }, [activeVersion]);
 
   const refQuery = useMemo(() => parseReferenceQuery(query), [query]);
+
+  // Distinct book names found in the active version, in the order they
+  // first appear (i.e. canonical Bible order from the import file).
+  const bookNames = useMemo(() => {
+    if (!activeVerses) return [];
+    const seen = new Set<string>();
+    const names: string[] = [];
+    for (const v of activeVerses) {
+      const m = v.reference.match(/^(.+?)\s+\d+:\d+$/);
+      if (m && !seen.has(m[1])) {
+        seen.add(m[1]);
+        names.push(m[1]);
+      }
+    }
+    return names;
+  }, [activeVerses]);
+
+  // Book-name suggestions shown below the search box while the user is
+  // still typing the book (i.e. before a chapter number makes refQuery
+  // non-null). Matches both with and without the internal space, so
+  // "1cor" suggests "1 Corinthiens".
+  const bookSuggestions = useMemo(() => {
+    const trimmed = query.trim();
+    if (!trimmed || refQuery || bookNames.length === 0) return [];
+    const q = normalizeForSearch(trimmed);
+    const qCompact = q.replace(/\s+/g, "");
+    const matches = bookNames.filter((name) => {
+      const n = normalizeForSearch(name);
+      return n.startsWith(q) || n.replace(/\s+/g, "").startsWith(qCompact);
+    });
+    if (matches.length === 1 && normalizeForSearch(matches[0]) === q) return [];
+    return matches.slice(0, 8);
+  }, [query, refQuery, bookNames]);
 
   const exactMatches = useMemo(() => {
     if (!refQuery || !activeVerses) return [];
@@ -245,12 +279,34 @@ export default function VerseSearch({ onAdd, onAddMany, onProjectLive }: VerseSe
             ))}
           </select>
 
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher (ex: Jean 4:4, Jean 4:4-6, Jean 5, espérance...)"
-            className="w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm outline-none focus:border-accent"
-          />
+          <div className="relative">
+            <input
+              ref={queryInputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Rechercher (ex: Jean 4:4, Jean 4:4-6, Jean 5, espérance...)"
+              className="w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+            {bookSuggestions.length > 0 && (
+              <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-white/10 bg-ink shadow-lg">
+                {bookSuggestions.map((name) => (
+                  <li key={name}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setQuery(`${name} `);
+                        queryInputRef.current?.focus();
+                      }}
+                      className="block w-full px-3 py-2 text-left text-sm text-white/80 hover:bg-accent/20"
+                    >
+                      {name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <div className="mt-3 max-h-64 space-y-1 overflow-y-auto">
             {refQuery ? (
               exactMatches.length === 0 ? (
