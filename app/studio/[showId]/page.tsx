@@ -278,6 +278,14 @@ export default function StudioShowPage() {
     else if (activeIndex === target) setActiveIndex(index);
   };
 
+  const clearSlides = () => {
+    if (show.slides.length === 0) return;
+    if (!window.confirm("Vider tout le déroulé ? Cette action est irréversible.")) return;
+    persist({ ...show, slides: [] });
+    setActiveIndex(-1);
+    setBlackout(true);
+  };
+
   const setBackground = (background: BackgroundSource) => persist({ ...show, background });
 
   const handleVideoFile = async (file: File) => {
@@ -336,7 +344,16 @@ export default function StudioShowPage() {
 
         <div className="grid grid-cols-12 gap-6">
           <section className="col-span-12 lg:col-span-3">
-            <h2 className="mb-2 text-sm font-semibold text-white/60">Déroulé ({show.slides.length})</h2>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-white/60">Déroulé ({show.slides.length})</h2>
+              <button
+                onClick={clearSlides}
+                disabled={show.slides.length === 0}
+                className="text-xs font-medium text-red-400/80 hover:underline disabled:opacity-30 disabled:hover:no-underline"
+              >
+                Tout effacer
+              </button>
+            </div>
             <SlideList
               slides={show.slides}
               activeIndex={activeIndex}
