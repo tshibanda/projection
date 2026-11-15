@@ -14,4 +14,11 @@ contextBridge.exposeInMainWorld("verseflowElectron", {
   // painting (background image decoded, etc.) — the render pipeline's cue
   // that a screenshot right now won't catch a half-loaded frame.
   notifyRenderReady: () => ipcRenderer.send("live-render-ready"),
+
+  // WorshipToolsSync's own capture-source picker: list windows/screens
+  // with thumbnails, then record which one was chosen so the next
+  // getDisplayMedia() call (a plain web API, called directly from the
+  // renderer) resolves to that exact source instead of popping a picker.
+  listCaptureSources: () => ipcRenderer.invoke("capture-list-sources"),
+  setSelectedCaptureSource: (id) => ipcRenderer.invoke("capture-set-selected-source", id),
 });

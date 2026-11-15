@@ -11,6 +11,7 @@ import { splitTextToFitDom } from "@/lib/domTextFit";
 import ProjectionCanvas from "@/components/ProjectionCanvas";
 import SlideList from "@/components/SlideList";
 import VerseSearch from "@/components/VerseSearch";
+import WorshipToolsSync from "@/components/WorshipToolsSync";
 import StylePanel from "@/components/StylePanel";
 import BackgroundPicker from "@/components/BackgroundPicker";
 
@@ -451,6 +452,7 @@ export default function StudioShowPage() {
               showImageControls={show.background.type === "imageFile" || show.background.type === "imageUrl"}
               isVideoBackground={show.background.type === "videoFile" || show.background.type === "videoUrl"}
             />
+            <WorshipToolsSync onVerseDetected={projectLive} />
           </section>
         </div>
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { parseBibleJson, ImportedVerse } from "@/lib/bibleParse";
+import { parseBibleJson, extractBookNames, ImportedVerse } from "@/lib/bibleParse";
 import { parseReferenceQuery, referenceFor, chapterPrefixFor } from "@/lib/verseReference";
 import { normalizeForSearch } from "@/lib/textNormalize";
 import {
@@ -118,21 +118,7 @@ export default function VerseSearch({ onAdd, onAddMany, onProjectLive }: VerseSe
 
   const refQuery = useMemo(() => parseReferenceQuery(query), [query]);
 
-  // Distinct book names found in the active version, in the order they
-  // first appear (i.e. canonical Bible order from the import file).
-  const bookNames = useMemo(() => {
-    if (!activeVerses) return [];
-    const seen = new Set<string>();
-    const names: string[] = [];
-    for (const v of activeVerses) {
-      const m = v.reference.match(/^(.+?)\s+\d+:\d+$/);
-      if (m && !seen.has(m[1])) {
-        seen.add(m[1]);
-        names.push(m[1]);
-      }
-    }
-    return names;
-  }, [activeVerses]);
+  const bookNames = useMemo(() => (activeVerses ? extractBookNames(activeVerses) : []), [activeVerses]);
 
   // Book-name suggestions shown below the search box while the user is
   // still typing the book (i.e. before a chapter number makes refQuery

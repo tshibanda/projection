@@ -25,6 +25,22 @@ export interface ParsedBibleVersion {
   verses: ImportedVerse[];
 }
 
+// Distinct book names found in a version's verses, in the order they first
+// appear (i.e. canonical Bible order, since that's the order imported files
+// list their verses in).
+export function extractBookNames(verses: ImportedVerse[]): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const v of verses) {
+    const m = v.reference.match(/^(.+?)\s+\d+:\d+$/);
+    if (m && !seen.has(m[1])) {
+      seen.add(m[1]);
+      names.push(m[1]);
+    }
+  }
+  return names;
+}
+
 export function parseBibleJson(raw: string): ParsedBibleVersion {
   let data: RawBibleFile;
   try {

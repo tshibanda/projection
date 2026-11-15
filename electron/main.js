@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, screen, ipcMain, nativeImage } = require("electron");
+const { app, BrowserWindow, Menu, shell, screen, session, ipcMain, nativeImage, desktopCapturer } = require("electron");
 const path = require("path");
 const http = require("http");
 const fs = require("fs");
@@ -173,6 +173,34 @@ ipcMain.on("live-render-ready", (event) => {
   scheduleConfirmCapture();
 });
 
+// Lets the renderer (WorshipToolsSync's source picker) list the windows
+// and screens available to capture, with a thumbnail to help the user
+// pick the right one. The actual video stream is then grabbed directly in
+// the renderer via getUserMedia with this id as chromeMediaSourceId —
+// desktopCapturer itself only hands out the catalog, not pixels.
+ipcMain.handle("capture-list-sources", async () => {
+  const sources = await desktopCapturer.getSources({
+    types: ["window", "screen"],
+    thumbnailSize: { width: 320, height: 180 },
+  });
+  return sources.map((s) => ({
+    id: s.id,
+    name: s.name,
+    thumbnailDataUrl: s.thumbnail.isEmpty() ? null : s.thumbnail.toDataURL(),
+  }));
+});
+
+// getDisplayMedia() normally pops the OS/Electron source picker every time
+// it's called. WorshipToolsSync has its own thumbnail picker instead, so
+// the renderer records the user's choice here right before calling
+// getDisplayMedia(), and the handler below answers deterministically with
+// that exact source — no second picker, no re-prompting on every restart
+// of the capture loop.
+let pendingCaptureSourceId = null;
+ipcMain.handle("capture-set-selected-source", (_event, id) => {
+  pendingCaptureSourceId = id;
+});
+
 function getAppDir() {
   return app.isPackaged
     ? path.join(process.resourcesPath, "app")
@@ -284,6 +312,25 @@ function createWindow() {
 Menu.setApplicationMenu(null);
 
 app.whenReady().then(async () => {
+  // Answers every getDisplayMedia() call from the renderer with whichever
+  // window/screen was most recently chosen in WorshipToolsSync's own
+  // picker (via capture-set-selected-source above), instead of showing
+  // Electron's built-in picker. If nothing was chosen yet, denying (an
+  // empty callback) makes getDisplayMedia() reject instead of hanging.
+  session.defaultSession.setDisplayMediaRequestHandler(
+    (_request, callback) => {
+      if (!pendingCaptureSourceId) {
+        callback({});
+        return;
+      }
+      desktopCapturer.getSources({ types: ["window", "screen"] }).then((sources) => {
+        const match = sources.find((s) => s.id === pendingCaptureSourceId);
+        callback(match ? { video: match } : {});
+      });
+    },
+    { useSystemPicker: false }
+  );
+
   try {
     await startServer();
     createWindow();
