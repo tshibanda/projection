@@ -344,7 +344,7 @@ export default function StudioShowPage() {
         </header>
 
         <div className="grid grid-cols-12 gap-6">
-          <section className="col-span-12 lg:col-span-3">
+          <section className="col-span-12 lg:col-span-3 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-1">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-white/60">Déroulé ({show.slides.length})</h2>
               <button
@@ -437,7 +437,7 @@ export default function StudioShowPage() {
             </div>
           </section>
 
-          <section className="col-span-12 space-y-6 lg:col-span-3">
+          <section className="col-span-12 space-y-6 lg:col-span-3 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-1">
             <BackgroundPicker
               background={show.background}
               onVideoFile={handleVideoFile}
